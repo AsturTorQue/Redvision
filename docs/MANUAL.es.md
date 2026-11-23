@@ -43,6 +43,10 @@ Resumen en tiempo real de tu red:
 - **Seguridad** y **Calidad de la conexión**: muestran la nota de la última auditoría y de la última medición de calidad.
 - **Acciones rápidas**: atajos a las tareas más habituales.
 
+### Informe completo
+
+El botón **📋 Crear informe completo** del Panel junta en una página web (HTML) todo lo revisado: los datos de tu red, la seguridad de este equipo (si no la habías revisado, lo hace en ese momento), las vulnerabilidades de la red, el diagnóstico de la LAN, la lista de dispositivos y las alertas de los últimos 7 días, con cada problema explicado y cómo arreglarlo. Se guarda en tu carpeta personal como `RedVision-informe-….html` y se abre en el navegador; desde ahí puedes **imprimirlo como PDF** o enviarlo a quien te ayude con la red. Para un informe más completo, escanea la red y lanza antes la auditoría y el diagnóstico.
+
 ## Red y topología
 
 Descubre todos los equipos activos de tu subred.

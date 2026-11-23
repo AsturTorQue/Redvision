@@ -26,6 +26,7 @@ mod pages_wifi;
 mod ping;
 mod ports;
 mod pwned;
+mod report;
 mod qoe;
 mod security;
 mod speedtest;

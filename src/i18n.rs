@@ -1111,6 +1111,21 @@ const TABLE: &[(&str, &str, &str)] = &[
     ("Si no juegas en línea ni usas programas que lo necesiten, desactiva UPnP en el router.", "If you don't play online or use programs that need it, turn off UPnP on the router.", "Se você não joga online nem usa programas que precisem, desative o UPnP no roteador."),
     ("Asistencia rápida", "Quick Assist", "Assistência Rápida"),
     ("Cortafuegos, antivirus, cifrado, arranque seguro, actualizaciones, servicios abiertos, puertos abiertos a Internet (UPnP), control remoto, DNS, proxy, hosts, Wi-Fi, SSH y reinicios.", "Firewall, antivirus, encryption, Secure Boot, updates, open services, ports open to the Internet (UPnP), remote control, DNS, proxy, hosts, Wi-Fi, SSH and restarts.", "Firewall, antivírus, criptografia, inicialização segura, atualizações, serviços abertos, portas abertas à Internet (UPnP), controle remoto, DNS, proxy, hosts, Wi-Fi, SSH e reinícios."),
+    ("Abrir", "Open", "Abrir"),
+    ("Creado con RedVisión {} el {}. Para guardarlo como PDF, usa «Imprimir» en el navegador.", "Made with RedVisión {} on {}. To save it as PDF, use «Print» in the browser.", "Criado com RedVisión {} em {}. Para salvá-lo como PDF, use «Imprimir» no navegador."),
+    ("Creando el informe…", "Creating the report…", "Criando o relatório…"),
+    ("Crear informe completo", "Create full report", "Criar relatório completo"),
+    ("Detalle", "Detail", "Detalhe"),
+    ("Hay {} problemas graves y {} medios. Empieza por los marcados en rojo.", "There are {} serious and {} medium problems. Start with the ones marked in red.", "Há {} problemas graves e {} médios. Comece pelos marcados em vermelho."),
+    ("Informe de red y seguridad", "Network and security report", "Relatório de rede e segurança"),
+    ("Junta en una página la seguridad de este equipo, las vulnerabilidades, el diagnóstico, los dispositivos y las alertas. Se puede imprimir como PDF.", "Puts this computer's security, vulnerabilities, diagnosis, devices and alerts on one page. It can be printed as PDF.", "Junta numa página a segurança deste computador, as vulnerabilidades, o diagnóstico, os dispositivos e os alertas. Pode ser impresso como PDF."),
+    ("No hay problemas graves, pero sí {} medios que conviene revisar.", "No serious problems, but {} medium ones worth checking.", "Não há problemas graves, mas há {} médios que convém revisar."),
+    ("no revisado", "not checked", "não verificado"),
+    ("No se ha ejecutado todavía. Abre «{}» en la app y vuelve a crear el informe.", "Not run yet. Open «{}» in the app and create the report again.", "Ainda não executado. Abra «{}» no app e crie o relatório novamente."),
+    ("No se han encontrado problemas importantes en lo revisado.", "No important problems were found in what was checked.", "Não foram encontrados problemas importantes no que foi verificado."),
+    ("Sin alertas en los últimos 7 días.", "No alerts in the last 7 days.", "Sem alertas nos últimos 7 dias."),
+    ("Tu red", "Your network", "Sua rede"),
+    ("Vulnerabilidades de la red", "Network vulnerabilities", "Vulnerabilidades da rede"),
 ];
 
 #[cfg(test)]

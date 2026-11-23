@@ -43,6 +43,10 @@ A real-time summary of your network:
 - **Security** and **Connection quality**: the score of the last audit and of the last quality measurement.
 - **Quick actions**: shortcuts to the most common tasks.
 
+### Full report
+
+The **📋 Create full report** button on the Dashboard puts everything checked into one web page (HTML): your network details, this computer's security (checked on the spot if you hadn't done it), network vulnerabilities, the LAN diagnosis, the list of devices and the alerts from the last 7 days, with every problem explained and how to fix it. It's saved in your home folder as `RedVision-informe-….html` and opened in the browser; from there you can **print it as PDF** or send it to whoever helps you with your network. For a fuller report, scan the network and run the audit and diagnosis first.
+
 ## Network & topology
 
 Discovers every active host on your subnet.

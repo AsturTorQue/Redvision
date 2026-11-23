@@ -438,6 +438,20 @@ pub fn check(info: &NetInfo) -> (Vec<LanFinding>, Vec<(String, String)>) {
     (c.findings, c.facts)
 }
 
+pub fn score(f: &[LanFinding]) -> i32 {
+    100 - f
+        .iter()
+        .map(|x| match x.sev {
+            Sev::Critical => 35,
+            Sev::High => 18,
+            Sev::Medium => 8,
+            Sev::Low => 3,
+            Sev::Info => 0,
+        })
+        .sum::<i32>()
+        .min(100)
+}
+
 pub fn start(state: Shared<LanAudit>, info: NetInfo, ctx: egui::Context) {
     {
         let mut s = lock(&state);
@@ -445,17 +459,7 @@ pub fn start(state: Shared<LanAudit>, info: NetInfo, ctx: egui::Context) {
     }
     std::thread::spawn(move || {
         let (f, facts) = check(&info);
-        let score = 100
-            - f.iter()
-                .map(|x| match x.sev {
-                    Sev::Critical => 35,
-                    Sev::High => 18,
-                    Sev::Medium => 8,
-                    Sev::Low => 3,
-                    Sev::Info => 0,
-                })
-                .sum::<i32>()
-                .min(100);
+        let score = score(&f);
         let mut s = lock(&state);
         s.findings = f;
         s.facts = facts;

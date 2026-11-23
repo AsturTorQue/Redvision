@@ -16,6 +16,7 @@ app, en el apartado «Manual de uso», con buscador.
 - **Calidad (QoE)**: nota para voz, videollamadas, streaming, juegos y navegación.
 - **Análisis DNS**: consultas de cualquier tipo, comparación de servidores, DNSSEC, SPF/DMARC/CAA y secuestro de NXDOMAIN.
 - **Vulnerabilidades**: servicios expuestos, accesos anónimos, SNMP «public», UPnP, software antiguo; y revisión de este equipo (cortafuegos, antivirus, cifrado de disco, servicios expuestos, SSH, DNS, proxy, archivo hosts, Wi-Fi, Secure Boot, actualizaciones, control remoto, puertos abiertos a Internet por UPnP, DNS manipulado) y comprobación de contraseñas filtradas.
+- **Informe completo** en HTML (imprimible como PDF) con la seguridad, las vulnerabilidades, el diagnóstico, los dispositivos y las alertas.
 - **Intrusos y anomalías**: escaneos, suplantación ARP, DHCP no autorizado, inundaciones, túneles DNS, credenciales en claro, equipos nuevos o caídos, picos de tráfico, cambios de router o de DNS.
 - **Monitorización**: tráfico por interfaz y disponibilidad de equipos vigilados.
 - **Analizador Wi-Fi**: redes cercanas, tu conexión y su señal, espectro y canales más libres en 2.4 y 5 GHz,

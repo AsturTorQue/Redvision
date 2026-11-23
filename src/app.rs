@@ -137,6 +137,7 @@ pub struct NetApp {
     pub(crate) host_audit: Shared<crate::lanaudit::LanAudit>,
     pub(crate) pwned: Shared<crate::pwned::PwnedState>,
     pub(crate) pwned_input: String,
+    pub(crate) report: Shared<crate::report::ReportState>,
 }
 
 fn load_logo(ctx: &egui::Context) -> egui::TextureHandle {
@@ -263,6 +264,7 @@ impl NetApp {
             host_audit: shared(Default::default()),
             pwned: shared(Default::default()),
             pwned_input: String::new(),
+            report: shared(Default::default()),
         }
     }
 
@@ -672,8 +674,60 @@ fn draw_map(ui: &mut Ui, hosts: &[Host], gw: Option<Ipv4Addr>, local: Option<Ipv
 }
 
 impl NetApp {
+    /// Botón «Crear informe completo» (HTML para guardar, imprimir o enviar).
+    pub(crate) fn report_bar(&mut self, ui: &mut Ui) {
+        let (running, result) = {
+            let r = lock(&self.report);
+            (r.running, r.result.clone())
+        };
+        let auto = std::env::var("REDVISION_REPORT").is_ok() && !running && result.is_none();
+        ui.horizontal_wrapped(|ui| {
+            let btn = egui::Button::new(RichText::new(format!("📋 {}", tr("Crear informe completo"))).strong().color(ON_ACCENT())).fill(ACCENT());
+            if ui.add_enabled(!running, btn).clicked() || auto {
+                let data = {
+                    let ha = lock(&self.host_audit);
+                    let au = lock(&self.audit);
+                    let la = lock(&self.lan.audit);
+                    crate::report::ReportData {
+                        info: lock(&self.info).clone(),
+                        hosts: lock(&self.subnet).hosts.clone(),
+                        host_facts: ha.facts.clone(),
+                        host_findings: ha.findings.clone(),
+                        host_score: if ha.running { None } else { ha.score },
+                        net_findings: au.findings.clone(),
+                        net_score: au.score,
+                        lan_facts: la.facts.clone(),
+                        lan_findings: la.findings.clone(),
+                        lan_score: la.score,
+                        alerts: lock(&self.ids).alerts.clone(),
+                    }
+                };
+                crate::report::start(self.report.clone(), data, self.host_audit.clone(), self.screenshot.is_none(), ui.ctx().clone());
+            }
+            if running {
+                ui.spinner();
+                muted(ui, tr("Creando el informe…"));
+            } else {
+                match &result {
+                    Some(Ok(p)) => {
+                        ui.label(RichText::new(tf("Guardado en {}", &[&p.display()])).color(GREEN()));
+                        if ui.small_button(tr("Abrir")).clicked() {
+                            crate::report::open_path(p);
+                        }
+                    }
+                    Some(Err(e)) => {
+                        ui.label(RichText::new(tf("No se pudo guardar: {}", &[e])).color(RED()));
+                    }
+                    None => muted(ui, tr("Junta en una página la seguridad de este equipo, las vulnerabilidades, el diagnóstico, los dispositivos y las alertas. Se puede imprimir como PDF.")),
+                }
+            }
+        });
+    }
+
     fn page_dashboard(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         page_title(ui, tr("Panel de red"), tr("Resumen en tiempo real de tu red, su calidad y su seguridad"));
+        self.report_bar(ui);
+        ui.add_space(6.0);
         let info = lock(&self.info).clone();
         let (gw_lat, rates, hist): (Vec<Option<f64>>, (f64, f64), Vec<(f64, f64)>) = {
             let m = lock(&self.monitor);
