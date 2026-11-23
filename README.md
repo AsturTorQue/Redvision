@@ -15,6 +15,11 @@ Analizador de red de escritorio para **Linux, Windows y macOS**, escrito en Rust
 - **Vulnerabilidades**: servicios expuestos, accesos anónimos, SNMP «public», UPnP, software antiguo.
 - **Intrusos y anomalías**: escaneos, suplantación ARP, DHCP no autorizado, inundaciones, túneles DNS, credenciales en claro, equipos nuevos o caídos, picos de tráfico.
 - **Monitorización**: tráfico por interfaz y disponibilidad de equipos vigilados.
+- **Velocidad entre equipos**: como iperf, un equipo hace de servidor (puerto TCP 5201) y el otro mide
+  bajada, subida y latencia con varias conexiones en paralelo.
+- **Diagnóstico de la LAN**: dirección y DHCP, pérdida y latencia hasta el router, velocidad y dúplex del
+  cable, señal Wi-Fi, errores de la interfaz, rutas duplicadas, DNS, salida a Internet, portal cautivo,
+  MTU, IPv6, conflictos ARP y, si se pide, bufferbloat; con nota de salud y cómo arreglar cada problema.
 - **Herramientas**: IP pública y proveedor, calculadora de subredes, Wake-on-LAN, fabricante por MAC,
   MTU de la ruta, descubrimiento UPnP (televisores, routers, NAS) y Bonjour/mDNS (impresoras, Chromecast,
   AirPlay), tabla ARP e interfaces y rutas del sistema.

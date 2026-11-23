@@ -31,6 +31,8 @@ pub(crate) enum Tab {
     Security,
     Ids,
     Monitor,
+    Speed,
+    LanAudit,
     Tools,
     Settings,
 }
@@ -47,6 +49,8 @@ const TABS: &[(Tab, &str, &str)] = &[
     (Tab::Security, "🛡", "Vulnerabilidades"),
     (Tab::Ids, "🚨", "Intrusos y anomalías"),
     (Tab::Monitor, "📈", "Monitorización"),
+    (Tab::Speed, "⚡", "Velocidad entre equipos"),
+    (Tab::LanAudit, "📋", "Diagnóstico de la LAN"),
     (Tab::Tools, "🔧", "Herramientas"),
     (Tab::Settings, "⚙", "Ajustes"),
 ];
@@ -115,6 +119,7 @@ pub struct NetApp {
     pub(crate) subnet_input: String,
     pub(crate) mac_lookup: String,
     pub(crate) tx: crate::pages_extra::ToolsState,
+    pub(crate) lan: crate::pages_lan::LanState,
 }
 
 impl NetApp {
@@ -216,6 +221,7 @@ impl NetApp {
             subnet_input: String::new(),
             mac_lookup: String::new(),
             tx: Default::default(),
+            lan: Default::default(),
         }
     }
 
@@ -230,6 +236,8 @@ impl NetApp {
             "security" => Tab::Security,
             "ids" => Tab::Ids,
             "monitor" => Tab::Monitor,
+            "speed" => Tab::Speed,
+            "lanaudit" => Tab::LanAudit,
             "tools" => Tab::Tools,
             "settings" => Tab::Settings,
             _ => Tab::Dashboard,
@@ -407,6 +415,8 @@ impl eframe::App for NetApp {
                     Tab::Security => self.page_security(ui, ctx),
                     Tab::Ids => self.page_ids(ui, ctx),
                     Tab::Monitor => self.page_monitor(ui),
+                    Tab::Speed => self.page_speed(ui),
+                    Tab::LanAudit => self.page_lanaudit(ui),
                     Tab::Tools => self.page_tools(ui),
                     Tab::Settings => self.page_settings(ui, ctx),
                     Tab::Capture => {}
