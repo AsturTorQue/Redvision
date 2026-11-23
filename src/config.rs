@@ -7,6 +7,7 @@ pub struct Settings {
     pub theme: usize,
     pub zoom: f32,
     pub scan_on_start: bool,
+    pub notify: bool,
     pub watched: Vec<String>,
 }
 
@@ -26,7 +27,7 @@ pub fn path() -> PathBuf {
 }
 
 pub fn load() -> Settings {
-    let mut s = Settings { lang: crate::i18n::system_lang(), theme: 0, zoom: 1.0, scan_on_start: false, watched: Vec::new() };
+    let mut s = Settings { lang: crate::i18n::system_lang(), theme: 0, zoom: 1.0, scan_on_start: false, notify: true, watched: Vec::new() };
     if let Ok(txt) = std::fs::read_to_string(path()) {
         for line in txt.lines() {
             let Some((k, v)) = line.split_once('=') else { continue };
@@ -36,6 +37,7 @@ pub fn load() -> Settings {
                 "theme" => s.theme = v.parse().unwrap_or(0),
                 "zoom" => s.zoom = v.parse::<f32>().unwrap_or(1.0).clamp(0.7, 1.6),
                 "scan_on_start" => s.scan_on_start = v == "true",
+                "notify" => s.notify = v != "false",
                 "watched" => s.watched = v.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
                 _ => {}
             }
@@ -59,11 +61,12 @@ pub fn load() -> Settings {
 pub fn save(s: &Settings) -> Result<(), String> {
     std::fs::create_dir_all(dir()).map_err(|e| e.to_string())?;
     let txt = format!(
-        "# Preferencias de RedVisión\nlang={}\ntheme={}\nzoom={:.2}\nscan_on_start={}\nwatched={}\n",
+        "# Preferencias de RedVisión\nlang={}\ntheme={}\nzoom={:.2}\nscan_on_start={}\nnotify={}\nwatched={}\n",
         crate::i18n::LANGS[s.lang.min(crate::i18n::LANGS.len() - 1)].0,
         s.theme,
         s.zoom,
         s.scan_on_start,
+        s.notify,
         s.watched.join(",")
     );
     std::fs::write(path(), txt).map_err(|e| e.to_string())

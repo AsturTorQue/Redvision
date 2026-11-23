@@ -28,6 +28,9 @@ app, en el apartado «Manual de uso», con buscador.
 - **Herramientas**: IP pública y proveedor, calculadora de subredes, Wake-on-LAN, fabricante por MAC,
   MTU de la ruta, descubrimiento UPnP (televisores, routers, NAS) y Bonjour/mDNS (impresoras, Chromecast,
   AirPlay), tabla ARP e interfaces y rutas del sistema.
+- **Avisos e historial**: notificación del sistema ante alertas graves y alertas de los últimos 7 días entre sesiones.
+- **Whois** y **certificados HTTPS** (caducidad, nombre, firma, versiones de TLS) en Herramientas; la auditoría de vulnerabilidades también revisa el certificado.
+- **Velocidad de subida a Internet** en la prueba de calidad.
 - **Exportar a CSV**: equipos, conexiones, alertas y hallazgos.
 - **Idiomas**: español, inglés, portugués, francés y alemán (usa el del sistema la primera vez).
 - **Temas**: oscuro, claro, medianoche y terminal; tamaño de la interfaz ajustable.

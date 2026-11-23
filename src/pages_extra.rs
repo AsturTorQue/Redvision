@@ -27,6 +27,11 @@ pub struct ToolsState {
     pub arp: Vec<(Ipv4Addr, String)>,
     pub arp_loaded: bool,
     pub sys_text: Option<String>,
+    pub whois_query: String,
+    pub cert_query: String,
+    pub cert_auto: bool,
+    pub certs: Shared<(bool, Vec<crate::tlscheck::CertReport>)>,
+    pub whois: Shared<(bool, Option<Result<String, String>>)>,
 }
 
 impl NetApp {
@@ -55,6 +60,7 @@ impl NetApp {
 
     pub(crate) fn page_tools(&mut self, ui: &mut Ui) {
         page_title(ui, tr("Herramientas"), tr("Utilidades rápidas para la red"));
+        self.cert_card(ui);
         let pub_running = self.pubip_running.load(Ordering::Relaxed);
         let pub_result = lock(&self.pubip).clone();
         ui.columns(2, |c| {
@@ -155,6 +161,104 @@ impl NetApp {
         });
         ui.add_space(8.0);
         self.tools_more(ui);
+    }
+
+    fn cert_card(&mut self, ui: &mut Ui) {
+        let (cert_running, cert_reports) = {
+            let c = lock(&self.tx.certs);
+            (c.0, c.1.clone())
+        };
+        if self.tx.cert_query.is_empty() {
+            self.tx.cert_query = "debian.org wikipedia.org".into();
+        }
+        card(ui, tr("Certificados HTTPS: validez y caducidad"), |ui| {
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.tx.cert_query).hint_text("example.com mail.example.com:993").desired_width(420.0));
+                // Para las capturas de prueba: REDVISION_CERTS="host1 host2" lanza la comprobación sola
+                let auto = !self.tx.cert_auto && std::env::var("REDVISION_CERTS").map(|q| self.tx.cert_query = q).is_ok();
+                self.tx.cert_auto = true;
+                let clicked = ui.add_enabled(!cert_running && !self.tx.cert_query.trim().is_empty(), egui::Button::new(tr("Comprobar"))).clicked();
+                if clicked || auto {
+                    let (st, ctx) = (self.tx.certs.clone(), ui.ctx().clone());
+                    let targets: Vec<(String, u16)> = self.tx.cert_query.split(|c: char| c.is_whitespace() || c == ',').filter_map(crate::tlscheck::parse_target).take(12).collect();
+                    *lock(&st) = (true, Vec::new());
+                    std::thread::spawn(move || {
+                        for (h, p) in targets {
+                            let r = crate::tlscheck::check(&h, p);
+                            lock(&st).1.push(r);
+                            ctx.request_repaint();
+                        }
+                        lock(&st).0 = false;
+                        ctx.request_repaint();
+                    });
+                }
+                if cert_running {
+                    ui.spinner();
+                }
+            });
+            if cert_reports.is_empty() {
+                muted(ui, tr("Escribe uno o varios servidores (separados por espacios) y comprueba su certificado, cuántos días le quedan y qué versiones de TLS aceptan. También sirve para correo (993, 465) o paneles (8443)."));
+            }
+            let single = cert_reports.len() == 1;
+            for r in &cert_reports {
+                let days = r.days_left();
+                let (txt, col) = match (&r.error, days) {
+                    (Some(_), None) => (tr("error").to_string(), RED()),
+                    (_, Some(d)) if d < 0 => (tf("caducado hace {} días", &[&-d]), RED()),
+                    (_, Some(d)) if d <= 7 => (tf("caduca en {} días", &[&d]), ORANGE()),
+                    (_, Some(d)) if d <= 30 => (tf("caduca en {} días", &[&d]), AMBER()),
+                    (_, Some(d)) => (tf("{} días restantes", &[&d]), GREEN()),
+                    _ => ("—".into(), MUTED()),
+                };
+                egui::CollapsingHeader::new(RichText::new(format!("{}:{}  ·  {}", r.host, r.port, txt)).strong().size(15.0).color(col)).id_salt(("cert", &r.host, r.port)).default_open(single || r.error.is_some() || !r.findings.iter().all(|f| f.sev == crate::ids::Sev::Info)).show(ui, |ui| {
+                    if let Some(e) = &r.error {
+                        notice(ui, e, RED());
+                    }
+                    if let Some(c) = r.certs.first() {
+                        egui::Grid::new(("certgrid", &r.host, r.port)).num_columns(2).spacing([18.0, 3.0]).show(ui, |ui| {
+                            let fmt = |t: i64| chrono::DateTime::from_timestamp(t, 0).map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+                            let rows = [
+                                (tr("Nombre (CN)"), c.subject_cn.clone()),
+                                (tr("Cubre"), if c.sans.is_empty() { "—".into() } else { c.sans.iter().take(8).cloned().collect::<Vec<_>>().join(", ") + if c.sans.len() > 8 { " …" } else { "" } }),
+                                (tr("Emitido por"), if c.issuer_org.is_empty() { c.issuer_cn.clone() } else { format!("{} ({})", c.issuer_cn, c.issuer_org) }),
+                                (tr("Válido"), format!("{} -> {}", fmt(c.not_before), fmt(c.not_after))),
+                                (tr("Clave"), c.key.clone()),
+                                (tr("Firma"), c.sig_alg.clone()),
+                                (tr("Cadena enviada"), r.certs.iter().map(|x| x.subject_cn.clone()).collect::<Vec<_>>().join(" -> ")),
+                            ];
+                            for (k, v) in rows {
+                                ui.label(RichText::new(k).color(MUTED()));
+                                ui.label(v);
+                                ui.end_row();
+                            }
+                        });
+                    }
+                    if !r.versions.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(tr("Versiones de TLS")).color(MUTED()));
+                            for (v, ok) in &r.versions {
+                                let old = matches!(v, crate::tlscheck::Ver::V10 | crate::tlscheck::Ver::V11);
+                                badge(ui, &format!("{} {}", v.label(), if *ok { "✔" } else { "✖" }), if *ok { if old { RED() } else { GREEN() } } else { MUTED() });
+                            }
+                        });
+                    }
+                    for f in &r.findings {
+                        ui.horizontal(|ui| {
+                            badge(ui, f.sev.label(), sev_color(f.sev));
+                            ui.label(RichText::new(&f.title).strong());
+                        });
+                        ui.label(RichText::new(&f.detail).size(12.5).color(SUBTLE()));
+                        if !f.fix.is_empty() {
+                            ui.label(RichText::new(tf("Cómo arreglarlo: {}", &[&f.fix])).color(GREEN()).size(12.5));
+                        }
+                    }
+                });
+            }
+            if !cert_reports.is_empty() {
+                muted(ui, tr("Se lee el certificado que envía el servidor; no se verifica la firma de la cadena de confianza. Los servidores que solo admiten TLS 1.3 cifran su certificado y no se pueden leer así."));
+            }
+        });
+        ui.add_space(8.0);
     }
 
     fn tools_more(&mut self, ui: &mut Ui) {
@@ -306,6 +410,38 @@ impl NetApp {
             }
         });
         ui.add_space(8.0);
+        let (wh_running, wh_result) = {
+            let w = lock(&self.tx.whois);
+            (w.0, w.1.clone())
+        };
+        card(ui, tr("Whois: ¿de quién es este dominio o IP?"), |ui| {
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut self.tx.whois_query).hint_text("example.com / 8.8.8.8").desired_width(260.0));
+                let go = ui.add_enabled(!wh_running && !self.tx.whois_query.trim().is_empty(), egui::Button::new(tr("Consultar"))).clicked();
+                if go {
+                    let (st, q, ctx) = (self.tx.whois.clone(), self.tx.whois_query.trim().to_string(), ui.ctx().clone());
+                    lock(&st).0 = true;
+                    std::thread::spawn(move || {
+                        let r = tools::whois(&q);
+                        *lock(&st) = (false, Some(r));
+                        ctx.request_repaint();
+                    });
+                }
+                if wh_running {
+                    ui.spinner();
+                }
+            });
+            match wh_result {
+                Some(Ok(t)) => {
+                    egui::ScrollArea::vertical().id_salt("whoistext").max_height(300.0).show(ui, |ui| {
+                        ui.label(RichText::new(t).monospace().size(12.0).color(SUBTLE()));
+                    });
+                }
+                Some(Err(e)) => notice(ui, &e, RED()),
+                None => muted(ui, tr("Muestra el dueño registrado, fechas y contactos públicos (servicio whois, puerto 43).")),
+            }
+        });
+        ui.add_space(8.0);
         card(ui, tr("Interfaces y rutas del sistema"), |ui| {
             ui.horizontal(|ui| {
                 if ui.button(tr("Ver interfaces")).clicked() {
@@ -380,6 +516,12 @@ impl NetApp {
                 muted(ui, tf("Tamaño actual: {} %", &[&current]));
                 ui.add_space(6.0);
                 ui.checkbox(&mut self.settings.scan_on_start, tr("Escanear la red al abrir la app"));
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.settings.notify, tr("Avisar con una notificación del sistema si hay una alerta grave"));
+                });
+                if self.settings.notify && ui.small_button(tr("Probar notificación")).clicked() {
+                    crate::history::notify("RedVisión", &tr("Así se verá un aviso de alerta."));
+                }
             });
             card(&mut c[1], tr("Acerca de"), |ui| {
                 ui.label(RichText::new("RedVisión").size(18.0).strong().color(ACCENT()));

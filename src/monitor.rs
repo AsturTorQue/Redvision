@@ -198,7 +198,7 @@ pub fn start_monitor(state: Shared<MonitorState>, info: Shared<NetInfo>, ids: Sh
                             }
                             if w.up.is_some() && w.up != Some(up) {
                                 w.since = now_secs();
-                                let (sev, msg) = if up { (Sev::Info, tf("{} vuelve a responder.", &[&(h)])) } else { (Sev::Medium, tf("{} ha dejado de responder.", &[&(h)])) };
+                                let (sev, msg) = if up { (Sev::Info, tf("{} vuelve a responder.", &[&(h)])) } else { (Sev::High, tf("{} ha dejado de responder.", &[&(h)])) };
                                 lock(&ids).raise(sev, tr("Equipo caído"), &h, msg, &format!("{}-{}", h, up));
                             }
                             w.up = Some(up);

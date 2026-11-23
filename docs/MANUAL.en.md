@@ -120,9 +120,9 @@ Below it a plain-language diagnosis appears. Compare the latency to the router w
 
 ## Quality (QoE)
 
-Estimates how your connection will feel in real use. Press **Measure quality now** (about 20 seconds): it measures the router, Internet latency, DNS, connection time to a website and download speed.
+Estimates how your connection will feel in real use. Press **Measure quality now** (about 30 seconds): it measures the router, Internet latency, DNS, connection time to a website and **download** and **upload** speed to the Internet.
 
-You'll get an **overall score** and a score for voice calls, video calls, video streaming, online gaming and web browsing. The speed test file can be replaced with another one (it must start with `http://`).
+You'll get an **overall score** and a score for voice calls, video calls, video streaming, online gaming and web browsing. Video calls depend mostly on upload: 1 Mbps is tight and 5 Mbps or more is comfortable. The download test file and the upload server (it must accept POST requests) can be replaced; both must start with `http://`. If the download one doesn't answer, a backup is used.
 
 ## DNS analysis
 
@@ -139,7 +139,7 @@ Looks for security problems on devices in your network.
 - **Audit the router**: checks your gateway.
 - **Audit whole network**: checks every host from the last scan.
 
-About 60 common ports and dangerous services are checked: Telnet, anonymous FTP, SMB, remote desktop, VNC, reachable databases (Redis, MongoDB, MySQL…), Elasticsearch, Docker, unprotected Memcached, SNMP with the «public» community, UPnP, open DNS resolvers, old SSH versions and web servers showing their version.
+About 60 common ports and dangerous services are checked (and, if there's HTTPS, the expiry and validity of its certificate): Telnet, anonymous FTP, SMB, remote desktop, VNC, reachable databases (Redis, MongoDB, MySQL…), Elasticsearch, Docker, unprotected Memcached, SNMP with the «public» community, UPnP, open DNS resolvers, old SSH versions and web servers showing their version.
 
 Each finding has a level (Critical, High, Medium, Low, Info), an explanation and **how to fix it**. The **security score** starts at 100 and drops according to how serious the findings are. You can export the findings to CSV.
 
@@ -151,7 +151,7 @@ An intrusion detector that watches your network while the app is open.
 
 **With live capture** it also analyzes every packet and detects: port scans and network sweeps, stealth scans (NULL, FIN, XMAS), SYN and ICMP floods, rogue DHCP servers, DNS tunnels (data exfiltration), traffic to malware ports and passwords sent unencrypted.
 
-Alerts can be filtered by level, cleared and exported. The full list of rules is at the bottom of the page.
+Alerts can be filtered by level, cleared and exported. The last 7 days are kept, so when you reopen the app you still see what happened. If a **high or critical** alert fires (or a watched host stops responding), the app warns you with a **system notification** even when you're in another window; you can turn it off in Settings. The full list of rules is at the bottom of the page.
 
 > An alert isn't always an attack. For example, "The router's MAC appears on other IPs" may simply be a router with several addresses. Check the context before acting.
 
@@ -219,6 +219,8 @@ Requirements: on Linux it uses NetworkManager (`nmcli`); on Windows, `netsh` (Wi
 - **Path MTU**: the largest packet that reaches a target without being split. Useful with VPNs or sites that won't load.
 - **System ARP table**: which IP belongs to which MAC on your network.
 - **UPnP devices**: TVs, routers, NAS and other gadgets announcing themselves, with name and model.
+- **HTTPS certificates**: type one or more servers (`debian.org mail.example.com:993`) to see how many days their certificate has left (red if it has expired or expires within 7 days, orange and amber under a month), who it covers, who issued it, key and signature type, the certificate chain and which TLS versions it accepts (a red ✔ for TLS 1.0 and 1.1, which are obsolete). It warns about expired certificates, a different name, self-signed ones, weak signature or key and old TLS. The certificate the server sends is read; **the trust chain signature isn't verified**, and servers that only support TLS 1.3 encrypt their certificate and can't be read this way.
+- **Whois**: who the registered owner of a domain or IP is, with dates and public contacts. It follows referrals to the registry's server.
 - **Bonjour / mDNS services**: printers, Chromecast, AirPlay, shared folders…
 - **System interfaces and routes**: the network configuration as the operating system sees it.
 
@@ -228,6 +230,7 @@ Requirements: on Linux it uses NetworkManager (`nmcli`); on Windows, `netsh` (Wi
 - **Theme**: Dark, Light, Midnight or Terminal.
 - **Interface size**: from 70 % to 160 %.
 - **Scan the network when the app opens**.
+- **System notifications** for serious alerts, with a button to test them.
 
 Preferences and watched hosts are saved in:
 
@@ -259,7 +262,7 @@ Preferences and watched hosts are saved in:
 
 1. Scan the network and press **Audit whole network** in **Vulnerabilities**.
 2. Start with critical and high findings; each one says how to fix it.
-3. Also check the router with **Audit the router** and the **Ports → This computer** tab.
+3. Also check the router with **Audit the router** and the **Ports -> This computer** tab.
 
 ### Measuring the cable or Wi-Fi between two computers
 

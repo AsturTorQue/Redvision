@@ -120,9 +120,9 @@ Debajo aparece un diagnóstico en lenguaje sencillo. Compara la latencia al rout
 
 ## Calidad (QoE)
 
-Calcula cómo se sentirá tu conexión en el uso real. Pulsa **Medir calidad ahora** (unos 20 segundos): mide el router, la latencia a Internet, el DNS, el tiempo de conexión a una web y la velocidad de descarga.
+Calcula cómo se sentirá tu conexión en el uso real. Pulsa **Medir calidad ahora** (unos 30 segundos): mide el router, la latencia a Internet, el DNS, el tiempo de conexión a una web y la velocidad de **descarga** y de **subida** a Internet.
 
-Obtendrás una **nota global** y una nota para llamadas de voz, videollamadas, vídeo en streaming, juegos en línea y navegación web. El archivo de prueba de velocidad se puede cambiar por otro (debe empezar por `http://`).
+Obtendrás una **nota global** y una nota para llamadas de voz, videollamadas, vídeo en streaming, juegos en línea y navegación web. Las videollamadas dependen sobre todo de la subida: con 1 Mbps van justas y con 5 Mbps o más, holgadas. El archivo de prueba de descarga y el servidor de subida (debe aceptar envíos POST) se pueden cambiar por otros; ambos deben empezar por `http://`. Si el de descarga no responde, se usa uno de respaldo.
 
 ## Análisis DNS
 
@@ -139,7 +139,7 @@ Busca problemas de seguridad en equipos de tu red.
 - **Auditar el router**: revisa tu puerta de enlace.
 - **Auditar toda la red**: revisa todos los equipos del último escaneo.
 
-Se comprueban unos 60 puertos habituales y servicios peligrosos: Telnet, FTP anónimo, SMB, escritorio remoto, VNC, bases de datos accesibles (Redis, MongoDB, MySQL…), Elasticsearch, Docker, Memcached sin protección, SNMP con la comunidad «public», UPnP, resolvedores DNS abiertos, versiones antiguas de SSH y servidores web que muestran su versión.
+Se comprueban unos 60 puertos habituales y servicios peligrosos (y, si hay HTTPS, la caducidad y validez de su certificado): Telnet, FTP anónimo, SMB, escritorio remoto, VNC, bases de datos accesibles (Redis, MongoDB, MySQL…), Elasticsearch, Docker, Memcached sin protección, SNMP con la comunidad «public», UPnP, resolvedores DNS abiertos, versiones antiguas de SSH y servidores web que muestran su versión.
 
 Cada hallazgo tiene un nivel (Crítica, Alta, Media, Baja, Info), una explicación y **cómo arreglarlo**. La **puntuación de seguridad** empieza en 100 y baja según la gravedad de lo encontrado. Puedes exportar los hallazgos a CSV.
 
@@ -151,7 +151,7 @@ Un detector de intrusos que vigila tu red mientras la app está abierta.
 
 **Con captura en vivo** además analiza cada paquete y detecta: escaneos de puertos y barridos de red, escaneos sigilosos (NULL, FIN, XMAS), inundaciones SYN e ICMP, servidores DHCP no autorizados, túneles DNS (exfiltración de datos), tráfico a puertos de malware y contraseñas enviadas sin cifrar.
 
-Las alertas se pueden filtrar por nivel, borrar y exportar. Al final de la página está la lista completa de reglas.
+Las alertas se pueden filtrar por nivel, borrar y exportar. Se guardan los últimos 7 días, así que al volver a abrir la app sigues viendo lo que pasó. Si salta una alerta **alta o crítica** (o un equipo vigilado deja de responder), la app lo avisa con una **notificación del sistema** aunque estés en otra ventana; se puede desactivar en Ajustes. Al final de la página está la lista completa de reglas.
 
 > Una alerta no es siempre un ataque. Por ejemplo, «La MAC del router aparece en otras IP» puede deberse a un router con varias direcciones. Revisa el contexto antes de actuar.
 
@@ -219,6 +219,8 @@ Requisitos: en Linux usa NetworkManager (`nmcli`); en Windows, `netsh` (Windows 
 - **MTU de la ruta**: el paquete más grande que llega sin partirse a un destino. Útil con VPN o webs que no cargan.
 - **Tabla ARP del sistema**: qué IP corresponde a qué MAC en tu red.
 - **Dispositivos UPnP**: televisores, routers, NAS y otros aparatos que se anuncian en la red, con nombre y modelo.
+- **Certificados HTTPS**: escribe uno o varios servidores (`debian.org mail.ejemplo.com:993`) y verás cuántos días le quedan a su certificado (en rojo si ha caducado o caduca en menos de 7 días, naranja y ámbar si queda menos de un mes), a quién cubre, quién lo emitió, el tipo de clave y firma, la cadena de certificados y qué versiones de TLS acepta (✔ en rojo para TLS 1.0 y 1.1, que son obsoletos). Avisa de certificados caducados, de otro nombre, autofirmados, con firma o clave débil y de TLS antiguo. Se lee el certificado que envía el servidor; **no se verifica la firma de la cadena de confianza**, y los servidores que solo admiten TLS 1.3 cifran su certificado y no se pueden leer así.
+- **Whois**: quién es el dueño registrado de un dominio o de una IP, con fechas y contactos públicos. Sigue las referencias hasta el servidor del registro.
 - **Servicios Bonjour / mDNS**: impresoras, Chromecast, AirPlay, carpetas compartidas…
 - **Interfaces y rutas del sistema**: la configuración de red tal como la ve el sistema operativo.
 
@@ -228,6 +230,7 @@ Requisitos: en Linux usa NetworkManager (`nmcli`); en Windows, `netsh` (Windows 
 - **Tema**: Oscuro, Claro, Medianoche o Terminal.
 - **Tamaño de la interfaz**: del 70 % al 160 %.
 - **Escanear la red al abrir la app**.
+- **Notificaciones del sistema** para las alertas graves, con un botón para probarlas.
 
 Las preferencias y los equipos vigilados se guardan en:
 
@@ -259,7 +262,7 @@ Las preferencias y los equipos vigilados se guardan en:
 
 1. Escanea la red y pulsa **Auditar toda la red** en **Vulnerabilidades**.
 2. Empieza por los hallazgos críticos y altos; cada uno dice cómo arreglarlo.
-3. Revisa también el router con **Auditar el router** y el apartado **Puertos → Este equipo**.
+3. Revisa también el router con **Auditar el router** y el apartado **Puertos -> Este equipo**.
 
 ### Medir el cable o el Wi-Fi entre dos ordenadores
 

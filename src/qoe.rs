@@ -24,6 +24,8 @@ pub struct QoeResult {
     pub tcp_ms: Option<f64>,
     pub down_bps: Option<f64>,
     pub down_err: Option<String>,
+    pub up_bps: Option<f64>,
+    pub up_err: Option<String>,
     pub r: f64,
     pub mos: f64,
     pub scores: Vec<AppScore>,
@@ -36,6 +38,7 @@ pub struct QoeState {
     pub step: String,
     pub progress: f32,
     pub live_down: Option<f64>,
+    pub live_up: Option<f64>,
     pub result: Option<QoeResult>,
 }
 
@@ -61,6 +64,9 @@ fn low(v: f64, good: f64, bad: f64) -> f64 {
 fn high(v: f64, bad: f64, good: f64) -> f64 {
     (100.0 * (v - bad) / (good - bad)).clamp(0.0, 100.0)
 }
+
+pub const DEFAULT_DOWN: &str = "http://ipv4.download.thinkbroadband.com/512MB.zip";
+pub const DEFAULT_UP: &str = "http://speed.cloudflare.com/__up";
 
 fn parse_url(url: &str) -> Option<(String, u16, String)> {
     let rest = url.trim().strip_prefix("http://")?;
@@ -121,12 +127,92 @@ fn download(url: &str, max_secs: f64, state: &Shared<QoeState>, ctx: &egui::Cont
     Ok(total as f64 / el)
 }
 
-pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option<IpAddr>, url: String, ctx: egui::Context) {
+/// Envía datos a un servidor que acepta subidas por HTTP (POST) durante `secs` segundos y devuelve
+/// bytes por segundo. Se envían bloques de 16 MB repetidos por varias conexiones y se ignora el
+/// primer segundo (los búferes del sistema se llenan de golpe y falsean el arranque).
+fn upload(url: &str, secs: f64, streams: usize, state: &Shared<QoeState>, ctx: &egui::Context) -> Result<f64, String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
+    const BLOCK: usize = 16 * 1024 * 1024;
+    let (host, port, path) = parse_url(url).ok_or_else(|| tr("La dirección debe empezar por http://").to_string())?;
+    let addr: SocketAddr = (host.as_str(), port).to_socket_addrs().map_err(|e| e.to_string())?.next().ok_or_else(|| tr("Sin dirección").to_string())?;
+    let counter = Arc::new(AtomicU64::new(0));
+    let problem: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let deadline = Instant::now() + Duration::from_secs_f64(secs);
+    let mut handles = Vec::new();
+    for _ in 0..streams {
+        let (counter, problem, host, path) = (counter.clone(), problem.clone(), host.clone(), path.clone());
+        handles.push(thread::spawn(move || {
+            let chunk = vec![0x5Au8; 64 * 1024];
+            while Instant::now() < deadline {
+                let mut s = match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        *problem.lock().unwrap_or_else(|e| e.into_inner()) = Some(tf("No conecta: {}", &[&e]));
+                        return;
+                    }
+                };
+                s.set_nodelay(true).ok();
+                s.set_write_timeout(Some(Duration::from_secs(5))).ok();
+                s.set_read_timeout(Some(Duration::from_secs(4))).ok();
+                let head = format!("POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: RedVision\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", path, host, BLOCK);
+                if s.write_all(head.as_bytes()).is_err() {
+                    return;
+                }
+                let mut sent = 0usize;
+                while sent < BLOCK && Instant::now() < deadline {
+                    let n = chunk.len().min(BLOCK - sent);
+                    match s.write(&chunk[..n]) {
+                        Ok(w) => {
+                            sent += w;
+                            counter.fetch_add(w as u64, Ordering::Relaxed);
+                        }
+                        Err(_) => return,
+                    }
+                }
+                if sent == BLOCK {
+                    let mut resp = [0u8; 64];
+                    let n = s.read(&mut resp).unwrap_or(0);
+                    let line = String::from_utf8_lossy(&resp[..n]).to_string();
+                    if n > 0 && !line.contains(" 2") {
+                        *problem.lock().unwrap_or_else(|e| e.into_inner()) = Some(tf("El servidor respondió: {}", &[&line.lines().next().unwrap_or("")]));
+                        return;
+                    }
+                }
+            }
+        }));
+    }
+    let t0 = Instant::now();
+    let mut samples: Vec<(f64, u64)> = Vec::new();
+    while t0.elapsed().as_secs_f64() < secs + 1.0 && handles.iter().any(|h| !h.is_finished()) {
+        thread::sleep(Duration::from_millis(250));
+        let (t, b) = (t0.elapsed().as_secs_f64(), counter.load(Ordering::Relaxed));
+        if let Some(&(pt, pb)) = samples.iter().rev().find(|(pt, _)| t - pt >= 1.0) {
+            lock(state).live_up = Some((b - pb) as f64 / (t - pt));
+            ctx.request_repaint();
+        }
+        samples.push((t, b));
+    }
+    for h in handles {
+        let _ = h.join();
+    }
+    let total = counter.load(Ordering::Relaxed);
+    let t_end = t0.elapsed().as_secs_f64().min(secs);
+    let (t1, b1) = samples.iter().find(|(t, _)| *t >= 1.0).copied().unwrap_or((0.0, 0));
+    if total < 64 * 1024 {
+        return Err(problem.lock().unwrap_or_else(|e| e.into_inner()).clone().unwrap_or_else(|| tr("No se enviaron datos").to_string()));
+    }
+    let span = (t_end - t1).max(0.5);
+    Ok(total.saturating_sub(b1) as f64 / span)
+}
+
+pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option<IpAddr>, url: String, up_url: String, ctx: egui::Context) {
     {
         let mut s = lock(&state);
         s.running = true;
         s.progress = 0.0;
         s.live_down = None;
+        s.live_up = None;
         s.step = tr("Midiendo la red local…").into();
     }
     thread::spawn(move || {
@@ -175,9 +261,18 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
             }
         }
         step(tr("Midiendo la velocidad de descarga (10 s)…"), 0.65);
-        match download(&url, 10.0, &state, &ctx) {
+        let mut dl = download(&url, 10.0, &state, &ctx);
+        if dl.is_err() && url != DEFAULT_DOWN {
+            dl = download(DEFAULT_DOWN, 10.0, &state, &ctx); // servidor de respaldo
+        }
+        match dl {
             Ok(b) => r.down_bps = Some(b),
             Err(e) => r.down_err = Some(e),
+        }
+        step(tr("Midiendo la velocidad de subida (8 s)…"), 0.85);
+        match upload(&up_url, 8.0, 3, &state, &ctx) {
+            Ok(b) => r.up_bps = Some(b),
+            Err(e) => r.up_err = Some(e),
         }
         // Notas
         let lat = if r.inet.recv > 0 { r.inet.avg } else { 999.0 };
@@ -193,7 +288,9 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
         };
         let llamada = {
             let base = 0.35 * low(lat, 40.0, 300.0) + 0.25 * low(r.inet.jitter, 10.0, 60.0) + 0.25 * low(r.inet.loss, 0.5, 5.0);
-            base + 0.15 * mbps.map(|x| high(x, 1.5, 10.0)).unwrap_or(50.0)
+            // En una videollamada lo que manda es la subida: con 1 Mbps va justa y con 5 Mbps va holgada
+            let up_mbps = r.up_bps.map(|b| b * 8.0 / 1e6);
+            base + 0.15 * up_mbps.or(mbps).map(|x| high(x, 1.0, 5.0)).unwrap_or(50.0)
         };
         let web = 0.4 * low(r.dns_ms.unwrap_or(500.0), 20.0, 300.0) + 0.4 * low(r.tcp_ms.unwrap_or(800.0), 30.0, 400.0) + 0.2 * low(lat, 20.0, 200.0);
         r.scores = vec![
@@ -211,4 +308,41 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
         s.step = tr("Medición terminada").into();
         ctx.request_repaint();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Subida real (necesita Internet): `cargo test -- --ignored --nocapture upload_live`
+    #[test]
+    #[ignore]
+    fn upload_live() {
+        let state = shared(QoeState::default());
+        let ctx = egui::Context::default();
+        let r = upload(DEFAULT_UP, 5.0, 3, &state, &ctx);
+        println!("subida: {:?}", r.as_ref().map(|b| fmt_bps(*b)));
+        let bad = upload("http://127.0.0.1:9/x", 2.0, 1, &state, &ctx);
+        println!("servidor caído: {:?}", bad);
+        assert!(r.is_ok() && bad.is_err());
+    }
+
+    /// Prueba completa real (necesita Internet): `cargo test -- --ignored --nocapture qoe_full`
+    #[test]
+    #[ignore]
+    fn qoe_full() {
+        let state = shared(QoeState::default());
+        start_qoe(state.clone(), Some(Ipv4Addr::new(192, 168, 0, 253)), Some(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))), DEFAULT_DOWN.into(), DEFAULT_UP.into(), egui::Context::default());
+        let t0 = Instant::now();
+        while lock(&state).result.is_none() && t0.elapsed().as_secs() < 90 {
+            thread::sleep(Duration::from_millis(300));
+        }
+        let s = lock(&state);
+        let r = s.result.as_ref().expect("sin resultado");
+        println!("duracion {:.0}s bajada {:?} subida {:?} err {:?}/{:?} nota {:.0}", t0.elapsed().as_secs_f64(), r.down_bps.map(fmt_bps), r.up_bps.map(fmt_bps), r.down_err, r.up_err, r.overall);
+        for a in &r.scores {
+            println!("   {} {:.0} {}", a.name, a.score, a.detail);
+        }
+        assert!(r.up_bps.is_some());
+    }
 }

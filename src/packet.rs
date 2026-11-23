@@ -366,7 +366,7 @@ fn tcp(d: &[u8], start: usize, end: usize, s: &mut Summary, ls: &mut Vec<Layer>)
     l.f("Ventana", win);
     l.f("Datos", format!("{} bytes", pl.len()));
     ls.push(l);
-    s.info = format!("{} → {} [{}] Sec={} Ack={} Ventana={} Long={}", sp, dp, tcp_flags_text(flags), seq, ack, win, pl.len());
+    s.info = format!("{} -> {} [{}] Sec={} Ack={} Ventana={} Long={}", sp, dp, tcp_flags_text(flags), seq, ack, win, pl.len());
     let label = port_label(sp, dp);
     if pl.is_empty() {
         return;
@@ -552,7 +552,7 @@ fn udp(d: &[u8], start: usize, end: usize, s: &mut Summary, ls: &mut Vec<Layer>)
     l.f("Puerto destino", format!("{} {}", dp, service_name(dp)));
     l.f("Longitud", u16at(p, 4));
     ls.push(l);
-    s.info = format!("{} → {} Long={}", sp, dp, pl.len());
+    s.info = format!("{} -> {} Long={}", sp, dp, pl.len());
     let label = port_label(sp, dp);
     if !label.is_empty() {
         s.proto = label.to_string();
@@ -607,7 +607,7 @@ fn dns(pl: &[u8], s: &mut Summary, ls: &mut Vec<Layer>, label: &str) {
         l.f("Pregunta", format!("{} {}", crate::dns::type_name(*t), n));
     }
     for a in m.answers.iter().take(12) {
-        l.f("Respuesta", format!("{} {} → {} (TTL {})", crate::dns::type_name(a.rtype), a.name, a.data, a.ttl));
+        l.f("Respuesta", format!("{} {} -> {} (TTL {})", crate::dns::type_name(a.rtype), a.name, a.data, a.ttl));
     }
     ls.push(l);
     s.dns_response = m.is_response();
@@ -618,7 +618,7 @@ fn dns(pl: &[u8], s: &mut Summary, ls: &mut Vec<Layer>, label: &str) {
             s.info = if m.rcode != 0 {
                 format!("Respuesta {} {} · {}", crate::dns::type_name(t), n, crate::dns::rcode_name(m.rcode))
             } else {
-                format!("Respuesta {} {} → {}", crate::dns::type_name(t), n, ans.iter().take(3).cloned().collect::<Vec<_>>().join(", "))
+                format!("Respuesta {} {} -> {}", crate::dns::type_name(t), n, ans.iter().take(3).cloned().collect::<Vec<_>>().join(", "))
             };
             s.dns_answers = ans;
         } else {

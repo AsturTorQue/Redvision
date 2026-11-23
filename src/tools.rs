@@ -104,6 +104,49 @@ pub fn subnet(input: &str) -> Option<Vec<(&'static str, String)>> {
     ])
 }
 
+fn whois_ask(server: &str, query: &str) -> Result<String, String> {
+    let addr = (server, 43).to_socket_addrs().map_err(|e| format!("{}: {}", server, e))?.next().ok_or("DNS")?;
+    let mut s = TcpStream::connect_timeout(&addr, Duration::from_secs(6)).map_err(|e| format!("{}: {}", server, e))?;
+    s.set_read_timeout(Some(Duration::from_secs(8))).ok();
+    s.write_all(format!("{}\r\n", query).as_bytes()).map_err(|e| e.to_string())?;
+    let mut buf = Vec::new();
+    let _ = s.take(256 * 1024).read_to_end(&mut buf);
+    Ok(String::from_utf8_lossy(&buf).to_string())
+}
+
+fn whois_refer(text: &str) -> Option<String> {
+    text.lines().find_map(|l| {
+        let (k, v) = l.split_once(':')?;
+        let k = k.trim().to_lowercase();
+        let v = v.trim().trim_start_matches("whois://").trim_start_matches("http://").trim_end_matches('/').to_string();
+        if (k == "refer" || k == "whois" || k == "registrar whois server") && !v.is_empty() && !v.contains(' ') {
+            Some(v)
+        } else {
+            None
+        }
+    })
+}
+
+/// Whois de un dominio o una IP: pregunta a IANA y sigue las referencias hasta el servidor del registro.
+pub fn whois(query: &str) -> Result<String, String> {
+    let q = query.trim();
+    if q.is_empty() || q.contains(char::is_whitespace) {
+        return Err(crate::i18n::tr("Escribe un dominio o una IP.").into());
+    }
+    let mut server = "whois.iana.org".to_string();
+    let mut out = String::new();
+    for _ in 0..3 {
+        let text = whois_ask(&server, q)?;
+        let next = whois_refer(&text).filter(|n| !n.eq_ignore_ascii_case(&server));
+        out.push_str(&format!("### {}\n{}\n", server, text.trim()));
+        match next {
+            Some(n) => server = n,
+            None => break,
+        }
+    }
+    Ok(out)
+}
+
 fn csv_cell(s: &str) -> String {
     if s.contains([',', '"', '\n', ';']) {
         format!("\"{}\"", s.replace('"', "\"\""))
@@ -126,4 +169,19 @@ pub fn export_csv(name: &str, header: &[&str], rows: &[Vec<String>]) -> Result<P
     }
     std::fs::write(&path, out).map_err(|e| e.to_string())?;
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    /// Whois real (necesita Internet): `cargo test -- --ignored --nocapture whois_live`
+    #[test]
+    #[ignore]
+    fn whois_live() {
+        for q in ["debian.org", "wikipedia.org", "8.8.8.8"] {
+            let r = super::whois(q);
+            let t = r.as_ref().map(|t| t.lines().filter(|l| l.starts_with("###") || l.to_lowercase().contains("registrar:") || l.to_lowercase().contains("orgname") || l.to_lowercase().contains("netname")).collect::<Vec<_>>().join(" | ")).unwrap_or_else(|e| e.clone());
+            println!("{} -> {}", q, t);
+            assert!(r.is_ok());
+        }
+    }
 }

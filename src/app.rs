@@ -99,6 +99,7 @@ pub struct NetApp {
     pub(crate) trace_target: String,
     pub(crate) qoe: Shared<QoeState>,
     pub(crate) qoe_url: String,
+    pub(crate) qoe_up_url: String,
     pub(crate) dns: Shared<DnsState>,
     pub(crate) dns_name: String,
     pub(crate) dns_type: u16,
@@ -130,6 +131,7 @@ pub struct NetApp {
     pub(crate) wifi_auto: bool,
     pub(crate) logo: egui::TextureHandle,
     pub(crate) elevate: Shared<crate::elevate::ElevateState>,
+    pub(crate) alert_mark: f64,
 }
 
 fn load_logo(ctx: &egui::Context) -> egui::TextureHandle {
@@ -148,6 +150,12 @@ impl NetApp {
         apply_style(&cc.egui_ctx);
         let info = shared(NetInfo::default());
         let ids = shared(Ids::default());
+        let mut alert_mark = 0.0;
+        if screenshot.is_none() {
+            let old = crate::history::load();
+            alert_mark = old.iter().map(|a| a.ts).fold(0.0, f64::max);
+            lock(&ids).alerts = old;
+        }
         let monitor = shared(MonitorState::default());
         let subnet = shared(SubnetScan::default());
         {
@@ -213,7 +221,8 @@ impl NetApp {
             trace: shared(TraceState::default()),
             trace_target: "1.1.1.1".into(),
             qoe: shared(QoeState::default()),
-            qoe_url: "http://speedtest.tele2.net/100MB.zip".into(),
+            qoe_url: qoe::DEFAULT_DOWN.into(),
+            qoe_up_url: qoe::DEFAULT_UP.into(),
             dns: shared(DnsState::default()),
             dns_name: "example.com".into(),
             dns_type: 1,
@@ -245,6 +254,7 @@ impl NetApp {
             wifi_auto: false,
             logo: load_logo(&cc.egui_ctx),
             elevate: shared(Default::default()),
+            alert_mark,
         }
     }
 
@@ -259,6 +269,7 @@ impl NetApp {
             "security" => Tab::Security,
             "ids" => Tab::Ids,
             "monitor" => Tab::Monitor,
+            "qoe" => Tab::Qoe,
             "speed" => Tab::Speed,
             "lanaudit" => Tab::LanAudit,
             "wifi" => Tab::Wifi,
@@ -290,6 +301,27 @@ impl NetApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else if self.frames >= 120 && self.frames % 120 == 0 {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+        }
+    }
+
+    /// Guarda las alertas nuevas en el historial y avisa de las graves con una notificación del sistema.
+    fn track_alerts(&mut self) {
+        if self.screenshot.is_some() {
+            return;
+        }
+        let new: Vec<crate::ids::Alert> = lock(&self.ids).alerts.iter().filter(|a| a.ts > self.alert_mark).cloned().collect();
+        if new.is_empty() {
+            return;
+        }
+        self.alert_mark = new.iter().map(|a| a.ts).fold(self.alert_mark, f64::max);
+        crate::history::append(&new);
+        if self.settings.notify {
+            let grave: Vec<&crate::ids::Alert> = new.iter().filter(|a| a.sev >= Sev::High).collect();
+            if let Some(first) = grave.first() {
+                let title = format!("RedVisión · {} · {}", first.sev.label(), first.cat);
+                let body = if grave.len() > 1 { format!("{} (+{})", first.msg, grave.len() - 1) } else { first.msg.clone() };
+                crate::history::notify(&title, &body);
+            }
         }
     }
 
@@ -440,6 +472,7 @@ impl eframe::App for NetApp {
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+        self.track_alerts();
         // El zoom también puede cambiar con Ctrl + / Ctrl −: guardarlo igual
         let z = ctx.zoom_factor();
         if (z - self.settings.zoom).abs() > 0.005 {
@@ -1284,7 +1317,7 @@ impl NetApp {
                     muted(ui, tr("Nada que mostrar."));
                 }
                 for (t, src, h) in &http {
-                    ui.add(egui::Label::new(RichText::new(format!("{} {} → {}", fmt_clock(*t), src, h)).size(12.5)).truncate());
+                    ui.add(egui::Label::new(RichText::new(format!("{} {} -> {}", fmt_clock(*t), src, h)).size(12.5)).truncate());
                 }
                 for (t, d) in &dhcp {
                     ui.add(egui::Label::new(RichText::new(format!("{} {}", fmt_clock(*t), d)).size(12.5).color(ORANGE())).truncate());
@@ -1419,26 +1452,30 @@ impl NetApp {
 
     fn page_qoe(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         page_title(ui, tr("Calidad de experiencia (QoE)"), tr("Cómo se sentirá tu conexión en llamadas, vídeo, juegos y navegación"));
-        let (running, step, prog, live, result) = {
+        let (running, step, prog, live, live_up, result) = {
             let s = lock(&self.qoe);
-            (s.running, s.step.clone(), s.progress, s.live_down, s.result.clone())
+            (s.running, s.step.clone(), s.progress, s.live_down, s.live_up, s.result.clone())
         };
         card(ui, "", |ui| {
             ui.horizontal(|ui| {
                 if ui.add_enabled(!running, egui::Button::new(RichText::new(tr("Medir calidad ahora")).strong().color(ON_ACCENT())).fill(ACCENT())).clicked() {
                     let info = lock(&self.info).clone();
-                    qoe::start_qoe(self.qoe.clone(), info.gateway, info.dns.first().copied(), self.qoe_url.clone(), ctx.clone());
+                    qoe::start_qoe(self.qoe.clone(), info.gateway, info.dns.first().copied(), self.qoe_url.clone(), self.qoe_up_url.clone(), ctx.clone());
                 }
                 ui.label(tr("Archivo de prueba de velocidad:"));
                 ui.add(egui::TextEdit::singleline(&mut self.qoe_url).desired_width(330.0));
             });
+            ui.horizontal(|ui| {
+                ui.label(tr("Servidor de prueba de subida (acepta POST):"));
+                ui.add(egui::TextEdit::singleline(&mut self.qoe_up_url).desired_width(330.0));
+            });
             if running {
                 ui.add(egui::ProgressBar::new(prog).text(step.clone()).fill(ACCENT_DIM()));
-                if let Some(d) = live {
-                    muted(ui, tf("Descarga en curso: {}", &[&(fmt_bps(d))]));
+                if let Some(d) = live_up.or(live) {
+                    muted(ui, if live_up.is_some() { tf("Subida en curso: {}", &[&(fmt_bps(d))]) } else { tf("Descarga en curso: {}", &[&(fmt_bps(d))]) });
                 }
             } else {
-                muted(ui, tr("Tarda unos 20 segundos: mide el router, Internet (1.1.1.1), el DNS, el tiempo de conexión y la velocidad de descarga."));
+                muted(ui, tr("Tarda unos 30 segundos: mide el router, Internet (1.1.1.1), el DNS, el tiempo de conexión y la velocidad de descarga y de subida."));
             }
         });
         ui.add_space(6.0);
@@ -1454,6 +1491,9 @@ impl NetApp {
                         if let Some(e) = &r.down_err {
                             muted(ui, tf("Velocidad no medida: {}", &[&(e)]));
                         }
+                        if let Some(e) = &r.up_err {
+                            muted(ui, tf("Subida no medida: {}", &[&(e)]));
+                        }
                     });
                 });
             });
@@ -1465,13 +1505,14 @@ impl NetApp {
             });
         });
         ui.add_space(6.0);
-        ui.columns(6, |c| {
+        ui.columns(7, |c| {
             stat(&mut c[0], tr("Router"), &ms(if r.gw.recv > 0 { Some(r.gw.avg) } else { None }), GREEN(), &tf("pérdida {:.0}%", &[&(r.gw.loss)]));
             stat(&mut c[1], "Internet", &ms(if r.inet.recv > 0 { Some(r.inet.avg) } else { None }), ACCENT(), &tf("pérdida {:.0}%", &[&(r.inet.loss)]));
             stat(&mut c[2], "Jitter", &format!("{:.1} ms", r.inet.jitter), VIOLET(), "");
             stat(&mut c[3], "DNS", &ms(r.dns_ms), TEXT(), tr("resolución de nombres"));
             stat(&mut c[4], tr("Conexión web"), &ms(r.tcp_ms), TEXT(), tr("tiempo de conexión TCP"));
             stat(&mut c[5], tr("Descarga"), &r.down_bps.map(fmt_bps).unwrap_or("—".into()), ACCENT(), "");
+            stat(&mut c[6], tr("Subida"), &r.up_bps.map(fmt_bps).unwrap_or("—".into()), VIOLET(), "");
         });
     }
 
@@ -1752,6 +1793,7 @@ impl NetApp {
                 }
                 if ui.button(tr("Borrar alertas")).clicked() {
                     lock(&self.ids).alerts.clear();
+                    crate::history::clear();
                 }
             });
             self.export_notice(ui);

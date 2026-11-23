@@ -190,6 +190,13 @@ fn audit_host(target: &str, gateway: Option<Ipv4Addr>, out: &mut Vec<Finding>, o
             }
         }
     }
+    // Certificado HTTPS: caducidad, nombre, firma débil, TLS antiguo
+    if open.contains(&443) {
+        let rep = crate::tlscheck::check(&host, 443);
+        for f in rep.findings.iter().filter(|f| f.sev > Sev::Low || f.title.contains("TLS")) {
+            add(Some(443), f.sev, &f.title, f.detail.clone(), &f.fix);
+        }
+    }
     if open.contains(&80) && !open.contains(&443) {
         add(Some(80), Sev::Low, tr("Web sin HTTPS"), tr("El equipo ofrece web sin cifrar.").into(), tr("Activa HTTPS."));
     }

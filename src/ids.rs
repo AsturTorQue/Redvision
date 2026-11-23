@@ -189,7 +189,7 @@ impl Ids {
         if s.l4 == 6 || s.l4 == 17 {
             for p in [s.dport, s.sport] {
                 if BAD_PORTS.contains(&p) {
-                    self.raise(Sev::Medium, tr("Puertos sospechosos"), &srcs, tf("Tráfico {} → {} en el puerto {}, usado a menudo por malware.", &[&(src), &(dst), &(p)]), &format!("{}-{}", srcs, p));
+                    self.raise(Sev::Medium, tr("Puertos sospechosos"), &srcs, tf("Tráfico {} -> {} en el puerto {}, usado a menudo por malware.", &[&(src), &(dst), &(p)]), &format!("{}-{}", srcs, p));
                     break;
                 }
             }
@@ -214,7 +214,7 @@ impl Ids {
         if let Some(prev) = self.arp.get(&ip) {
             if prev != mac {
                 let sev = if Some(ip) == self.gateway { Sev::Critical } else { Sev::High };
-                let msg = tf("La IP {} cambió de MAC: {} → {}. Puede ser un ataque de intermediario (ARP spoofing).", &[&(ip), &(prev), &(mac)]);
+                let msg = tf("La IP {} cambió de MAC: {} -> {}. Puede ser un ataque de intermediario (ARP spoofing).", &[&(ip), &(prev), &(mac)]);
                 self.raise(sev, tr("Suplantación ARP"), &ip.to_string(), msg, &ip.to_string());
             }
         }
