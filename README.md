@@ -15,6 +15,11 @@ Analizador de red de escritorio para **Linux, Windows y macOS**, escrito en Rust
 - **Vulnerabilidades**: servicios expuestos, accesos anónimos, SNMP «public», UPnP, software antiguo.
 - **Intrusos y anomalías**: escaneos, suplantación ARP, DHCP no autorizado, inundaciones, túneles DNS, credenciales en claro, equipos nuevos o caídos, picos de tráfico.
 - **Monitorización**: tráfico por interfaz y disponibilidad de equipos vigilados.
+- **Herramientas**: IP pública y proveedor, calculadora de subredes, Wake-on-LAN y fabricante por MAC.
+- **Exportar a CSV**: equipos, conexiones, alertas y hallazgos.
+- **Idiomas**: español, inglés y portugués (usa el del sistema la primera vez).
+- **Temas**: oscuro, claro, medianoche y terminal; tamaño de la interfaz ajustable.
+- Las preferencias y los equipos vigilados se guardan entre sesiones.
 
 ## Descargas
 

@@ -1,5 +1,6 @@
 //! Monitorización continua: tráfico por interfaz, latencia al router, equipos vigilados,
 //! conexiones y tabla ARP (para el detector de intrusos).
+use crate::i18n::{tr, tf};
 use crate::ids::{Ids, Sev};
 use crate::ping::{measure, resolve, Method};
 use crate::ports::{connections, Conn};
@@ -159,7 +160,7 @@ pub fn start_monitor(state: Shared<MonitorState>, info: Shared<NetInfo>, ids: Sh
             if !spikes.is_empty() {
                 let mut ids = lock(&ids);
                 for (n, v, m) in spikes {
-                    ids.raise(Sev::Low, "Pico de tráfico", &n, format!("La interfaz {} alcanzó {} (lo normal es {}).", n, fmt_bps(v), fmt_bps(m)), &n);
+                    ids.raise(Sev::Low, tr("Pico de tráfico"), &n, tf("La interfaz {} alcanzó {} (lo normal es {}).", &[&(n), &(fmt_bps(v)), &(fmt_bps(m))]), &n);
                 }
             }
             // 2. Latencia al router cada 2 s
@@ -197,8 +198,8 @@ pub fn start_monitor(state: Shared<MonitorState>, info: Shared<NetInfo>, ids: Sh
                             }
                             if w.up.is_some() && w.up != Some(up) {
                                 w.since = now_secs();
-                                let (sev, msg) = if up { (Sev::Info, format!("{} vuelve a responder.", h)) } else { (Sev::Medium, format!("{} ha dejado de responder.", h)) };
-                                lock(&ids).raise(sev, "Equipo caído", &h, msg, &format!("{}-{}", h, up));
+                                let (sev, msg) = if up { (Sev::Info, tf("{} vuelve a responder.", &[&(h)])) } else { (Sev::Medium, tf("{} ha dejado de responder.", &[&(h)])) };
+                                lock(&ids).raise(sev, tr("Equipo caído"), &h, msg, &format!("{}-{}", h, up));
                             }
                             w.up = Some(up);
                             w.last_rtt = r;

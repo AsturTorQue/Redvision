@@ -1,4 +1,5 @@
 //! Detección de intrusos y anomalías a partir del tráfico capturado y del estado de la red.
+use crate::i18n::{tr, tf};
 use crate::packet::Summary;
 use crate::util::*;
 use std::collections::{HashMap, HashSet};
@@ -16,11 +17,11 @@ pub enum Sev {
 impl Sev {
     pub fn label(&self) -> &'static str {
         match self {
-            Sev::Info => "Info",
-            Sev::Low => "Baja",
-            Sev::Medium => "Media",
-            Sev::High => "Alta",
-            Sev::Critical => "Crítica",
+            Sev::Info => tr("Info"),
+            Sev::Low => tr("Baja"),
+            Sev::Medium => tr("Media"),
+            Sev::High => tr("Alta"),
+            Sev::Critical => tr("Crítica"),
         }
     }
     pub fn all() -> [Sev; 5] {
@@ -126,8 +127,8 @@ impl Ids {
         if let (Some((2, _)), Some(IpAddr::V4(src))) = (&s.dhcp, s.src_ip) {
             if let Some(gw) = self.gateway {
                 if src != gw && !src.is_unspecified() {
-                    self.raise(Sev::High, "DHCP no autorizado", &src.to_string(),
-                        format!("{} está ofreciendo direcciones DHCP y no es el router ({}).", src, gw), &src.to_string());
+                    self.raise(Sev::High, tr("DHCP no autorizado"), &src.to_string(),
+                        tf("{} está ofreciendo direcciones DHCP y no es el router ({}).", &[&(src), &(gw)]), &src.to_string());
                 }
             }
         }
@@ -137,7 +138,7 @@ impl Ids {
         let is_syn = s.l4 == 6 && s.tcp_flags & 0x02 != 0 && s.tcp_flags & 0x10 == 0;
         if s.l4 == 6 && (s.tcp_flags == 0 || s.tcp_flags == 0x01 || s.tcp_flags & 0x29 == 0x29) {
             let kind = if s.tcp_flags == 0 { "NULL" } else if s.tcp_flags == 0x01 { "FIN" } else { "XMAS" };
-            self.raise(Sev::High, "Escaneo sigiloso", &srcs, format!("Escaneo TCP {} desde {} hacia {}:{}", kind, src, dst, s.dport), &srcs);
+            self.raise(Sev::High, tr("Escaneo sigiloso"), &srcs, tf("Escaneo TCP {} desde {} hacia {}:{}", &[&(kind), &(src), &(dst), &(s.dport)]), &srcs);
         }
         if is_syn || (s.l4 == 17 && s.dport < 49152 && !matches!(s.dport, 53 | 123 | 443 | 5353 | 1900 | 137 | 138 | 67 | 68)) {
             let w = self.windows.entry(src).or_insert(Window { start: ts, ports: HashSet::new(), hosts: HashSet::new() });
@@ -150,10 +151,10 @@ impl Ids {
             w.hosts.insert(dst);
             let (np, nh) = (w.ports.len(), w.hosts.len());
             if np >= 20 {
-                self.raise(Sev::High, "Escaneo de puertos", &srcs, format!("{} probó {} puertos distintos en 10 s (último destino {}).", src, np, dst), &srcs);
+                self.raise(Sev::High, tr("Escaneo de puertos"), &srcs, tf("{} probó {} puertos distintos en 10 s (último destino {}).", &[&(src), &(np), &(dst)]), &srcs);
             }
             if nh >= 25 {
-                self.raise(Sev::Medium, "Barrido de red", &srcs, format!("{} contactó {} equipos distintos en 10 s.", src, nh), &srcs);
+                self.raise(Sev::Medium, tr("Barrido de red"), &srcs, tf("{} contactó {} equipos distintos en 10 s.", &[&(src), &(nh)]), &srcs);
             }
         }
         if is_syn {
@@ -163,7 +164,7 @@ impl Ids {
             }
             e.1 += 1;
             if e.1 > 300 {
-                self.raise(Sev::Critical, "Inundación SYN", &srcs, format!("Más de 300 conexiones/s hacia {} (posible ataque de denegación de servicio).", dst), &dst.to_string());
+                self.raise(Sev::Critical, tr("Inundación SYN"), &srcs, tf("Más de 300 conexiones/s hacia {} (posible ataque de denegación de servicio).", &[&(dst)]), &dst.to_string());
             }
         }
         if matches!(s.icmp_type, Some(8) | Some(128)) {
@@ -173,7 +174,7 @@ impl Ids {
             }
             e.1 += 1;
             if e.1 > 50 {
-                self.raise(Sev::Medium, "Inundación ICMP", &srcs, format!("{} envía más de 50 pings por segundo.", src), &srcs);
+                self.raise(Sev::Medium, tr("Inundación ICMP"), &srcs, tf("{} envía más de 50 pings por segundo.", &[&(src)]), &srcs);
             }
         }
         // DNS
@@ -181,14 +182,14 @@ impl Ids {
             let longest = q.split('.').map(|l| l.len()).max().unwrap_or(0);
             let first = q.split('.').next().unwrap_or("");
             if q.len() > 70 || (longest > 40 && entropy(first) > 3.8) {
-                self.raise(Sev::Medium, "Túnel DNS", &srcs, format!("Consulta DNS anómala ({} caracteres): {}", q.len(), &q[..q.len().min(90)]), &srcs);
+                self.raise(Sev::Medium, tr("Túnel DNS"), &srcs, tf("Consulta DNS anómala ({} caracteres): {}", &[&(q.len()), &(&q[..q.len().min(90)])]), &srcs);
             }
         }
         // Puertos sospechosos
         if s.l4 == 6 || s.l4 == 17 {
             for p in [s.dport, s.sport] {
                 if BAD_PORTS.contains(&p) {
-                    self.raise(Sev::Medium, "Puertos sospechosos", &srcs, format!("Tráfico {} → {} en el puerto {}, usado a menudo por malware.", src, dst, p), &format!("{}-{}", srcs, p));
+                    self.raise(Sev::Medium, tr("Puertos sospechosos"), &srcs, tf("Tráfico {} → {} en el puerto {}, usado a menudo por malware.", &[&(src), &(dst), &(p)]), &format!("{}-{}", srcs, p));
                     break;
                 }
             }
@@ -200,8 +201,8 @@ impl Ids {
             if (clear_port && (up.starts_with("PASS ") || up.contains(" LOGIN ") || up.starts_with("AUTH PLAIN")))
                 || up.contains("AUTHORIZATION: BASIC")
             {
-                self.raise(Sev::High, "Credenciales en claro", &srcs,
-                    format!("{} envió una contraseña sin cifrar a {}:{} ({}).", src, dst, s.dport, service_name(s.dport)), &format!("{}-{}", srcs, s.dport));
+                self.raise(Sev::High, tr("Credenciales en claro"), &srcs,
+                    tf("{} envió una contraseña sin cifrar a {}:{} ({}).", &[&(src), &(dst), &(s.dport), &(service_name(s.dport))]), &format!("{}-{}", srcs, s.dport));
             }
         }
     }
@@ -213,8 +214,8 @@ impl Ids {
         if let Some(prev) = self.arp.get(&ip) {
             if prev != mac {
                 let sev = if Some(ip) == self.gateway { Sev::Critical } else { Sev::High };
-                let msg = format!("La IP {} cambió de MAC: {} → {}. Puede ser un ataque de intermediario (ARP spoofing).", ip, prev, mac);
-                self.raise(sev, "Suplantación ARP", &ip.to_string(), msg, &ip.to_string());
+                let msg = tf("La IP {} cambió de MAC: {} → {}. Puede ser un ataque de intermediario (ARP spoofing).", &[&(ip), &(prev), &(mac)]);
+                self.raise(sev, tr("Suplantación ARP"), &ip.to_string(), msg, &ip.to_string());
             }
         }
         self.arp.insert(ip, mac.to_string());
@@ -232,14 +233,14 @@ impl Ids {
             if let Some((_, gmac)) = table.iter().find(|(ip, _)| *ip == gw) {
                 let others: Vec<String> = table.iter().filter(|(ip, m)| m == gmac && *ip != gw).map(|(ip, _)| ip.to_string()).collect();
                 if !others.is_empty() {
-                    self.raise(Sev::Medium, "Suplantación ARP", &others.join(", "),
-                        format!("La MAC del router ({}) también aparece en {}. Puede ser un router con varias IP o un ataque de intermediario.", gmac, others.join(", ")), gmac);
+                    self.raise(Sev::Medium, tr("Suplantación ARP"), &others.join(", "),
+                        tf("La MAC del router ({}) también aparece en {}. Puede ser un router con varias IP o un ataque de intermediario.", &[&(gmac), &(others.join(", "))]), gmac);
                 }
             }
         }
         for (ip, mac) in table {
             if self.known_macs.insert(mac.clone()) && self.baseline_done {
-                self.raise(Sev::Info, "Nuevo dispositivo", &ip.to_string(), format!("Nuevo equipo en la red: {} ({}) {}", ip, mac, vendor(mac)), mac);
+                self.raise(Sev::Info, tr("Nuevo dispositivo"), &ip.to_string(), tf("Nuevo equipo en la red: {} ({}) {}", &[&(ip), &(mac), &(vendor(mac))]), mac);
             }
         }
         self.baseline_done = true;

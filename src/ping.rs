@@ -1,4 +1,5 @@
 //! Latencia, pérdida de paquetes, ruta (traceroute) y sondeos TCP.
+use crate::i18n::{tr, tf};
 use crate::egui;
 use crate::util::*;
 use std::io::{BufRead, BufReader, ErrorKind};
@@ -171,7 +172,7 @@ pub fn start_latency(
             let mut s = lock(&state);
             s.ip = ip;
             if ip.is_none() {
-                s.error = Some(format!("No se pudo resolver «{}»", target));
+                s.error = Some(tf("No se pudo resolver «{}»", &[&(target)]));
             }
         }
         if let Some(ip) = ip {
@@ -279,7 +280,7 @@ pub fn start_trace(state: Shared<TraceState>, target: String, ctx: egui::Context
         }
         let mut s = lock(&state);
         if !started {
-            s.error = Some("No se encontró «traceroute» ni «tracepath» en el sistema. Instálalo para ver la ruta.".into());
+            s.error = Some(tr("No se encontró «traceroute» ni «tracepath» en el sistema. Instálalo para ver la ruta.").into());
         }
         s.running = false;
         ctx.request_repaint();

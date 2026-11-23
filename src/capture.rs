@@ -1,5 +1,6 @@
 //! Captura de paquetes en vivo (socket propio en Linux, tcpdump/dumpcap en los demás)
 //! y lectura/escritura de archivos pcap y pcapng.
+use crate::i18n::{tr, tf};
 use crate::ids::Ids;
 use crate::packet::{dissect, Packet, Summary};
 use crate::util::*;
@@ -204,7 +205,7 @@ fn read_exact_or_eof<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<bool, String>
     let mut got = 0;
     while got < buf.len() {
         match r.read(&mut buf[got..]) {
-            Ok(0) => return if got == 0 { Ok(false) } else { Err("Archivo cortado".into()) },
+            Ok(0) => return if got == 0 { Ok(false) } else { Err(tr("Archivo cortado").into()) },
             Ok(n) => got += n,
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
             Err(e) => return Err(e.to_string()),
@@ -216,7 +217,7 @@ fn read_exact_or_eof<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<bool, String>
 fn read_pcap_stream<R: Read>(mut r: R, sink: &mut Sink, stop: &AtomicBool) -> Result<(), String> {
     let mut magic = [0u8; 4];
     if !read_exact_or_eof(&mut r, &mut magic)? {
-        return Err("Sin datos".into());
+        return Err(tr("Sin datos").into());
     }
     let m = u32::from_le_bytes(magic);
     if m == 0x0A0D0D0A {
@@ -227,7 +228,7 @@ fn read_pcap_stream<R: Read>(mut r: R, sink: &mut Sink, stop: &AtomicBool) -> Re
         0xa1b23c4d => (true, true),
         0xd4c3b2a1 => (false, false),
         0x4d3cb2a1 => (false, true),
-        _ => return Err("No es un archivo pcap/pcapng válido".into()),
+        _ => return Err(tr("No es un archivo pcap/pcapng válido").into()),
     };
     let rd = |b: &[u8]| -> u32 {
         let a = [b[0], b[1], b[2], b[3]];
@@ -235,7 +236,7 @@ fn read_pcap_stream<R: Read>(mut r: R, sink: &mut Sink, stop: &AtomicBool) -> Re
     };
     let mut hdr = [0u8; 20];
     if !read_exact_or_eof(&mut r, &mut hdr)? {
-        return Err("Cabecera pcap incompleta".into());
+        return Err(tr("Cabecera pcap incompleta").into());
     }
     let linktype = rd(&hdr[16..20]) & 0xFFFF;
     let mut rec = [0u8; 16];
@@ -248,7 +249,7 @@ fn read_pcap_stream<R: Read>(mut r: R, sink: &mut Sink, stop: &AtomicBool) -> Re
         let incl = rd(&rec[8..12]) as usize;
         let orig = rd(&rec[12..16]);
         if incl > 262_144 {
-            return Err("Registro pcap demasiado grande".into());
+            return Err(tr("Registro pcap demasiado grande").into());
         }
         let mut data = vec![0u8; incl];
         if !read_exact_or_eof(&mut r, &mut data)? {
@@ -284,14 +285,14 @@ fn read_pcapng<R: Read>(mut r: R, first: [u8; 4], sink: &mut Sink, stop: &Atomic
             le = u32::from_le_bytes(bom) == 0x1A2B3C4D;
             blen = if le { u32::from_le_bytes(lenb) } else { u32::from_be_bytes(lenb) } as usize;
             if blen < 16 || blen > 1 << 24 {
-                return Err("Bloque pcapng no válido".into());
+                return Err(tr("Bloque pcapng no válido").into());
             }
             let mut rest = vec![0u8; blen - 12];
             read_exact_or_eof(&mut r, &mut rest)?;
             links.clear();
         } else {
             if blen < 12 || blen > 1 << 24 {
-                return Err("Bloque pcapng no válido".into());
+                return Err(tr("Bloque pcapng no válido").into());
             }
             let mut body = vec![0u8; blen - 8];
             if !read_exact_or_eof(&mut r, &mut body)? {
@@ -370,7 +371,7 @@ pub fn start_live(iface: String, state: Shared<CaptureState>, ids: Shared<Ids>, 
     let child_slot = ctl.child.clone();
     {
         let mut s = lock(&state);
-        s.reset(format!("En vivo · {}", if iface.is_empty() { "todas" } else { &iface }));
+        s.reset(tf("En vivo · {}", &[&(if iface.is_empty() { tr("todas") } else { &iface })]));
         s.running = true;
     }
     thread::spawn(move || {
@@ -393,14 +394,14 @@ pub fn start_live(iface: String, state: Shared<CaptureState>, ids: Shared<Ids>, 
 pub fn open_file(path: String, state: Shared<CaptureState>, ids: Shared<Ids>, ctx: egui::Context) {
     {
         let mut s = lock(&state);
-        s.reset(format!("Archivo · {}", path));
+        s.reset(tf("Archivo · {}", &[&(path)]));
         s.running = true;
     }
     thread::spawn(move || {
         let stop = AtomicBool::new(false);
         let mut sink = Sink { state: state.clone(), ids, ctx: ctx.clone(), buf: Vec::new(), last: Instant::now(), count: 0 };
         let res = std::fs::File::open(path.trim())
-            .map_err(|e| format!("No se pudo abrir el archivo: {}", e))
+            .map_err(|e| tf("No se pudo abrir el archivo: {}", &[&(e)]))
             .and_then(|f| read_pcap_stream(BufReader::new(f), &mut sink, &stop));
         let mut s = lock(&state);
         s.running = false;
@@ -453,9 +454,9 @@ fn live_external(iface: &str, sink: &mut Sink, stop: &AtomicBool, slot: &Arc<Mut
         .spawn()
         .map_err(|_| {
             if cfg!(windows) {
-                "Para capturar en Windows instala Wireshark (incluye Npcap y dumpcap) y vuelve a intentarlo.".to_string()
+                tr("Para capturar en Windows instala Wireshark (incluye Npcap y dumpcap) y vuelve a intentarlo.").to_string()
             } else {
-                "No se encontró «tcpdump». Instálalo para capturar paquetes.".to_string()
+                tr("No se encontró «tcpdump». Instálalo para capturar paquetes.").to_string()
             }
         })?;
     let out = child.stdout.take().ok_or("Sin salida")?;
@@ -471,8 +472,8 @@ fn live_external(iface: &str, sink: &mut Sink, stop: &AtomicBool, slot: &Arc<Mut
         let _ = c.wait();
     }
     if sink.count == 0 && !stop.load(Ordering::Relaxed) {
-        let hint = if cfg!(windows) { "Ejecuta la app como administrador." } else { "Ejecuta la app con sudo." };
-        return Err(format!("La captura no arrancó. {} {}", hint, msg.lines().last().unwrap_or("")));
+        let hint = if cfg!(windows) { tr("Ejecuta la app como administrador.") } else { tr("Ejecuta la app con sudo.") };
+        return Err(tf("La captura no arrancó. {} {}", &[&(hint), &(msg.lines().last().unwrap_or(""))]));
     }
     if let Err(e) = res {
         if !stop.load(Ordering::Relaxed) && sink.count == 0 {
@@ -490,17 +491,14 @@ fn live_linux(iface: &str, sink: &mut Sink, stop: &AtomicBool) -> Result<(), Str
         let fd = libc::socket(libc::AF_PACKET, libc::SOCK_RAW, proto as i32);
         if fd < 0 {
             let e = std::io::Error::last_os_error();
-            return Err(format!(
-                "No hay permiso para capturar ({}). Ejecuta la app con sudo, o dale permiso una vez con: sudo setcap cap_net_raw,cap_net_admin=eip <ruta de la app>",
-                e
-            ));
+            return Err(tf("No hay permiso para capturar ({}). Ejecuta la app con sudo, o dale permiso una vez con: sudo setcap cap_net_raw,cap_net_admin=eip <ruta de la app>", &[&(e)]));
         }
         if !iface.is_empty() && iface != "any" {
             let cname = std::ffi::CString::new(iface).unwrap_or_default();
             let idx = libc::if_nametoindex(cname.as_ptr());
             if idx == 0 {
                 libc::close(fd);
-                return Err(format!("La interfaz «{}» no existe", iface));
+                return Err(tf("La interfaz «{}» no existe", &[&(iface)]));
             }
             let mut sll: libc::sockaddr_ll = zeroed();
             sll.sll_family = libc::AF_PACKET as u16;

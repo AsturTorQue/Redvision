@@ -1,4 +1,5 @@
 //! Auditoría de seguridad: servicios expuestos, configuraciones débiles y versiones antiguas.
+use crate::i18n::{tr, tf};
 use crate::egui;
 use crate::ids::Sev;
 use crate::netscan::{grab_banner, is_http_port};
@@ -87,7 +88,7 @@ const SNMP_PUBLIC: &[u8] = &[
 
 fn audit_host(target: &str, gateway: Option<Ipv4Addr>, out: &mut Vec<Finding>, open_list: &mut Vec<(String, u16, String)>, stop: &AtomicBool) {
     let Some(ip) = resolve(target) else {
-        out.push(Finding { host: target.into(), port: None, sev: Sev::Info, title: "No se pudo resolver".into(), detail: "El nombre no existe o no hay DNS.".into(), fix: String::new() });
+        out.push(Finding { host: target.into(), port: None, sev: Sev::Info, title: tr("No se pudo resolver").into(), detail: tr("El nombre no existe o no hay DNS.").into(), fix: String::new() });
         return;
     };
     let host = ip.to_string();
@@ -123,94 +124,94 @@ fn audit_host(target: &str, gateway: Option<Ipv4Addr>, out: &mut Vec<Finding>, o
         let banner = grab_banner(addr, Duration::from_millis(1000));
         open_list.push((host.clone(), p, banner.clone()));
         match p {
-            23 => add(Some(p), Sev::High, "Telnet activo", "Telnet envía usuario y contraseña sin cifrar.".into(), "Desactiva Telnet y usa SSH."),
+            23 => add(Some(p), Sev::High, tr("Telnet activo"), tr("Telnet envía usuario y contraseña sin cifrar.").into(), tr("Desactiva Telnet y usa SSH.")),
             21 => {
                 let r = talk(addr, b"USER anonymous\r\nPASS anon@example.com\r\n", true);
                 if r.contains("230") {
-                    add(Some(p), Sev::High, "FTP con acceso anónimo", "Cualquiera puede entrar al FTP sin contraseña.".into(), "Desactiva el acceso anónimo.");
+                    add(Some(p), Sev::High, tr("FTP con acceso anónimo"), tr("Cualquiera puede entrar al FTP sin contraseña.").into(), tr("Desactiva el acceso anónimo."));
                 } else {
-                    add(Some(p), Sev::Medium, "FTP sin cifrar", format!("Banner: {}", banner), "Usa SFTP o FTPS.");
+                    add(Some(p), Sev::Medium, tr("FTP sin cifrar"), format!("Banner: {}", banner), tr("Usa SFTP o FTPS."));
                 }
             }
-            445 | 139 => add(Some(p), Sev::Medium, "Compartición de archivos (SMB) expuesta", "SMB ha sido vía de ataques graves (p. ej. WannaCry).".into(), "Limita SMB a la red local y mantén el sistema actualizado."),
-            3389 => add(Some(p), Sev::Medium, "Escritorio remoto (RDP) abierto", "Los ataques de fuerza bruta contra RDP son muy comunes.".into(), "Usa VPN o activa la autenticación a nivel de red."),
-            5900 | 5901 => add(Some(p), Sev::High, "VNC abierto", format!("Control remoto accesible. {}", banner), "Protégelo con contraseña fuerte o túnel SSH."),
+            445 | 139 => add(Some(p), Sev::Medium, tr("Compartición de archivos (SMB) expuesta"), tr("SMB ha sido vía de ataques graves (p. ej. WannaCry).").into(), tr("Limita SMB a la red local y mantén el sistema actualizado.")),
+            3389 => add(Some(p), Sev::Medium, tr("Escritorio remoto (RDP) abierto"), tr("Los ataques de fuerza bruta contra RDP son muy comunes.").into(), tr("Usa VPN o activa la autenticación a nivel de red.")),
+            5900 | 5901 => add(Some(p), Sev::High, tr("VNC abierto"), tf("Control remoto accesible. {}", &[&(banner)]), tr("Protégelo con contraseña fuerte o túnel SSH.")),
             6379 => {
                 let r = talk(addr, b"PING\r\n", false);
                 if r.starts_with("+PONG") {
-                    add(Some(p), Sev::Critical, "Redis sin contraseña", "La base de datos Redis responde sin autenticación.".into(), "Activa requirepass y no la expongas a la red.");
+                    add(Some(p), Sev::Critical, tr("Redis sin contraseña"), tr("La base de datos Redis responde sin autenticación.").into(), tr("Activa requirepass y no la expongas a la red."));
                 } else {
-                    add(Some(p), Sev::Low, "Redis expuesto", "Redis acepta conexiones desde la red.".into(), "Limítalo a localhost.");
+                    add(Some(p), Sev::Low, tr("Redis expuesto"), tr("Redis acepta conexiones desde la red.").into(), tr("Limítalo a localhost."));
                 }
             }
             11211 => {
                 let r = talk(addr, b"stats\r\n", false);
                 if r.contains("STAT") {
-                    add(Some(p), Sev::High, "Memcached sin protección", "Memcached responde a cualquiera y puede usarse para ataques de amplificación.".into(), "Escucha solo en localhost.");
+                    add(Some(p), Sev::High, tr("Memcached sin protección"), tr("Memcached responde a cualquiera y puede usarse para ataques de amplificación.").into(), tr("Escucha solo en localhost."));
                 }
             }
             9200 => {
                 let r = talk(addr, format!("GET / HTTP/1.0\r\nHost: {}\r\n\r\n", host).as_bytes(), false);
                 if r.contains("cluster_name") {
-                    add(Some(p), Sev::High, "Elasticsearch sin autenticación", "Los datos del índice son accesibles.".into(), "Activa la seguridad de Elasticsearch.");
+                    add(Some(p), Sev::High, tr("Elasticsearch sin autenticación"), tr("Los datos del índice son accesibles.").into(), tr("Activa la seguridad de Elasticsearch."));
                 }
             }
             2375 => {
                 let r = talk(addr, format!("GET /version HTTP/1.0\r\nHost: {}\r\n\r\n", host).as_bytes(), false);
                 if r.contains("ApiVersion") {
-                    add(Some(p), Sev::Critical, "API de Docker sin protección", "Quien acceda puede controlar todo el equipo.".into(), "Cierra el puerto 2375 o usa TLS (2376).");
+                    add(Some(p), Sev::Critical, tr("API de Docker sin protección"), tr("Quien acceda puede controlar todo el equipo.").into(), tr("Cierra el puerto 2375 o usa TLS (2376)."));
                 }
             }
-            27017 => add(Some(p), Sev::Medium, "MongoDB expuesto", "La base de datos acepta conexiones de la red.".into(), "Activa autenticación y limita el acceso."),
-            3306 | 5432 | 1433 | 1521 => add(Some(p), Sev::Medium, "Base de datos accesible en la red", format!("{} escucha en {}. {}", service_name(p), p, banner), "Permite solo los equipos que la necesitan."),
-            4444 | 31337 | 12345 | 6667 => add(Some(p), Sev::High, "Puerto típico de puerta trasera", format!("El puerto {} suele usarlo malware. {}", p, banner), "Revisa qué programa lo abre y analiza el equipo."),
-            1883 => add(Some(p), Sev::Medium, "MQTT sin cifrar", "Mensajería IoT accesible sin TLS.".into(), "Usa 8883 con TLS y usuario/contraseña."),
+            27017 => add(Some(p), Sev::Medium, tr("MongoDB expuesto"), tr("La base de datos acepta conexiones de la red.").into(), tr("Activa autenticación y limita el acceso.")),
+            3306 | 5432 | 1433 | 1521 => add(Some(p), Sev::Medium, tr("Base de datos accesible en la red"), tf("{} escucha en {}. {}", &[&(service_name(p)), &(p), &(banner)]), tr("Permite solo los equipos que la necesitan.")),
+            4444 | 31337 | 12345 | 6667 => add(Some(p), Sev::High, tr("Puerto típico de puerta trasera"), tf("El puerto {} suele usarlo malware. {}", &[&(p), &(banner)]), tr("Revisa qué programa lo abre y analiza el equipo.")),
+            1883 => add(Some(p), Sev::Medium, tr("MQTT sin cifrar"), tr("Mensajería IoT accesible sin TLS.").into(), tr("Usa 8883 con TLS y usuario/contraseña.")),
             161 => {}
             _ => {}
         }
         if p == 22 {
             if banner.starts_with("SSH-1") {
-                add(Some(p), Sev::High, "SSH versión 1", "SSH-1 tiene fallos criptográficos.".into(), "Usa solo SSH-2.");
+                add(Some(p), Sev::High, tr("SSH versión 1"), tr("SSH-1 tiene fallos criptográficos.").into(), tr("Usa solo SSH-2."));
             } else if let Some(v) = banner.split("OpenSSH_").nth(1) {
                 let major: u32 = v.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().unwrap_or(99);
                 if major < 8 {
-                    add(Some(p), Sev::Medium, "OpenSSH antiguo", format!("Versión {}.", banner), "Actualiza OpenSSH a una versión reciente.");
+                    add(Some(p), Sev::Medium, tr("OpenSSH antiguo"), tf("Versión {}.", &[&(banner)]), tr("Actualiza OpenSSH a una versión reciente."));
                 }
             }
         }
         if is_http_port(p) || p == 443 {
             if let Some(sv) = banner.split("Servidor: ").nth(1) {
                 if sv.chars().any(|c| c.is_ascii_digit()) {
-                    add(Some(p), Sev::Low, "El servidor web muestra su versión", format!("Cabecera Server: {}", sv), "Oculta la versión para no dar pistas a atacantes.");
+                    add(Some(p), Sev::Low, tr("El servidor web muestra su versión"), tf("Cabecera Server: {}", &[&(sv)]), tr("Oculta la versión para no dar pistas a atacantes."));
                 }
             }
             if [8080, 8000, 8888, 81, 8081].contains(&p) {
-                add(Some(p), Sev::Low, "Panel web en puerto alternativo", format!("Servicio web en {}: {}", p, banner), "Comprueba que tenga contraseña y esté actualizado.");
+                add(Some(p), Sev::Low, tr("Panel web en puerto alternativo"), tf("Servicio web en {}: {}", &[&(p), &(banner)]), tr("Comprueba que tenga contraseña y esté actualizado."));
             }
         }
     }
     if open.contains(&80) && !open.contains(&443) {
-        add(Some(80), Sev::Low, "Web sin HTTPS", "El equipo ofrece web sin cifrar.".into(), "Activa HTTPS.");
+        add(Some(80), Sev::Low, tr("Web sin HTTPS"), tr("El equipo ofrece web sin cifrar.").into(), tr("Activa HTTPS."));
     }
     // Comprobaciones UDP
     if let Some(r) = udp_ask(ip, 161, SNMP_PUBLIC) {
         let txt = printable(&r, 120);
-        add(Some(161), Sev::High, "SNMP con comunidad «public»", format!("Responde con la comunidad por defecto: {}", txt), "Cambia la comunidad o usa SNMPv3.");
+        add(Some(161), Sev::High, tr("SNMP con comunidad «public»"), tf("Responde con la comunidad por defecto: {}", &[&(txt)]), tr("Cambia la comunidad o usa SNMPv3."));
     }
     if udp_ask(ip, 1900, b"M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: ssdp:all\r\n\r\n").is_some() {
-        add(Some(1900), if is_gw { Sev::Low } else { Sev::Info }, "UPnP activo", "El equipo anuncia servicios UPnP; algunos programas pueden abrir puertos solos.".into(), "Desactiva UPnP en el router si no lo necesitas.");
+        add(Some(1900), if is_gw { Sev::Low } else { Sev::Info }, tr("UPnP activo"), tr("El equipo anuncia servicios UPnP; algunos programas pueden abrir puertos solos.").into(), tr("Desactiva UPnP en el router si no lo necesitas."));
     }
     if let Ok((m, _)) = crate::dns::query(ip, "example.com", 1, false, Duration::from_millis(1200)) {
         if !m.answers.is_empty() {
             if is_gw {
-                add(Some(53), Sev::Info, "El router resuelve DNS", "Normal en redes domésticas.".into(), "");
+                add(Some(53), Sev::Info, tr("El router resuelve DNS"), tr("Normal en redes domésticas.").into(), "");
             } else {
-                add(Some(53), Sev::Medium, "Resolvedor DNS abierto", "Responde consultas recursivas de cualquiera; puede usarse para ataques de amplificación.".into(), "Limita la recursión a tus equipos.");
+                add(Some(53), Sev::Medium, tr("Resolvedor DNS abierto"), tr("Responde consultas recursivas de cualquiera; puede usarse para ataques de amplificación.").into(), tr("Limita la recursión a tus equipos."));
             }
         }
     }
     if open.is_empty() {
-        add(None, Sev::Info, "Sin puertos habituales abiertos", "No se encontraron servicios en los puertos comprobados.".into(), "");
+        add(None, Sev::Info, tr("Sin puertos habituales abiertos"), tr("No se encontraron servicios en los puertos comprobados.").into(), "");
     }
 }
 
@@ -225,7 +226,7 @@ pub fn start_audit(targets: Vec<String>, gateway: Option<Ipv4Addr>, state: Share
             if stop.load(Ordering::Relaxed) {
                 break;
             }
-            lock(&state).step = format!("Auditando {}…", t);
+            lock(&state).step = tf("Auditando {}…", &[&(t)]);
             ctx.request_repaint();
             let mut f = Vec::new();
             let mut o = Vec::new();
@@ -240,7 +241,7 @@ pub fn start_audit(targets: Vec<String>, gateway: Option<Ipv4Addr>, state: Share
         }
         let mut s = lock(&state);
         s.running = false;
-        s.step = "Auditoría terminada".into();
+        s.step = tr("Auditoría terminada").into();
         s.score = Some(score(&s.findings));
         s.finished = Some(now_secs());
         ctx.request_repaint();

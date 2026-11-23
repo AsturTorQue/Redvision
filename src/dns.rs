@@ -1,4 +1,5 @@
 //! Cliente DNS propio (UDP con reintento por TCP) y análisis de dominios.
+use crate::i18n::{tr, tf};
 use crate::egui;
 use crate::ids::Sev;
 use crate::util::*;
@@ -27,12 +28,12 @@ pub fn type_name(t: u16) -> String {
 
 pub fn rcode_name(r: u8) -> &'static str {
     match r {
-        0 => "NOERROR (correcto)",
-        1 => "FORMERR (formato)",
-        2 => "SERVFAIL (fallo del servidor)",
-        3 => "NXDOMAIN (no existe)",
-        4 => "NOTIMP (no implementado)",
-        5 => "REFUSED (rechazada)",
+        0 => tr("NOERROR (correcto)"),
+        1 => tr("FORMERR (formato)"),
+        2 => tr("SERVFAIL (fallo del servidor)"),
+        3 => tr("NXDOMAIN (no existe)"),
+        4 => tr("NOTIMP (no implementado)"),
+        5 => tr("REFUSED (rechazada)"),
         _ => "otro",
     }
 }
@@ -252,7 +253,7 @@ pub fn query(server: IpAddr, name: &str, qtype: u16, dnssec: bool, timeout: Dura
     sock.send_to(&q, addr).map_err(|e| e.to_string())?;
     let mut buf = vec![0u8; 4096];
     loop {
-        let (n, _) = sock.recv_from(&mut buf).map_err(|_| "Sin respuesta (tiempo agotado)".to_string())?;
+        let (n, _) = sock.recv_from(&mut buf).map_err(|_| tr("Sin respuesta (tiempo agotado)").to_string())?;
         let ms = t0.elapsed().as_secs_f64() * 1000.0;
         if let Some(m) = parse(&buf[..n]) {
             if m.id != id {
@@ -265,7 +266,7 @@ pub fn query(server: IpAddr, name: &str, qtype: u16, dnssec: bool, timeout: Dura
             }
             return Ok((m, ms));
         }
-        return Err("Respuesta no válida".into());
+        return Err(tr("Respuesta no válida").into());
     }
 }
 
@@ -280,7 +281,7 @@ fn query_tcp(server: IpAddr, q: &[u8], timeout: Duration) -> Result<(DnsMsg, f64
     s.read_exact(&mut lb).map_err(|e| e.to_string())?;
     let mut buf = vec![0u8; u16::from_be_bytes(lb) as usize];
     s.read_exact(&mut buf).map_err(|e| e.to_string())?;
-    let m = parse(&buf).ok_or("Respuesta no válida")?;
+    let m = parse(&buf).ok_or(tr("Respuesta no válida"))?;
     Ok((m, t0.elapsed().as_secs_f64() * 1000.0))
 }
 
@@ -353,7 +354,7 @@ pub fn start_analysis(state: Shared<DnsState>, system: Vec<IpAddr>, domain: Stri
         s.resolvers.clear();
         s.records.clear();
         s.findings.clear();
-        s.step = "Comparando servidores DNS…".into();
+        s.step = tr("Comparando servidores DNS…").into();
     }
     thread::spawn(move || {
         let to = Duration::from_millis(2500);
@@ -384,21 +385,21 @@ pub fn start_analysis(state: Shared<DnsState>, system: Vec<IpAddr>, domain: Stri
         if let Some(best) = results.iter().filter(|r| r.ms.is_some()).min_by(|a, b| a.ms.partial_cmp(&b.ms).unwrap()) {
             findings.push(DnsFinding {
                 sev: Sev::Info,
-                title: format!("Servidor más rápido: {} ({})", best.name, best.server),
-                detail: format!("Respondió en {:.1} ms.", best.ms.unwrap_or(0.0)),
+                title: tf("Servidor más rápido: {} ({})", &[&(best.name), &(best.server)]),
+                detail: tf("Respondió en {:.1} ms.", &[&(best.ms.unwrap_or(0.0))]),
             });
         }
         if let Some(sys) = results.iter().find(|r| r.name == "Sistema") {
             match sys.ms {
                 None => findings.push(DnsFinding {
                     sev: Sev::High,
-                    title: "El DNS del sistema no responde".into(),
-                    detail: "Las páginas tardarán en abrir o no abrirán. Revisa el router o usa un DNS público.".into(),
+                    title: tr("El DNS del sistema no responde").into(),
+                    detail: tr("Las páginas tardarán en abrir o no abrirán. Revisa el router o usa un DNS público.").into(),
                 }),
                 Some(ms) if ms > 150.0 => findings.push(DnsFinding {
                     sev: Sev::Medium,
-                    title: format!("DNS del sistema lento ({:.0} ms)", ms),
-                    detail: "Un DNS por encima de 150 ms ralentiza la navegación.".into(),
+                    title: tf("DNS del sistema lento ({:.0} ms)", &[&(ms)]),
+                    detail: tr("Un DNS por encima de 150 ms ralentiza la navegación.").into(),
                 }),
                 _ => {}
             }
@@ -407,19 +408,15 @@ pub fn start_analysis(state: Shared<DnsState>, system: Vec<IpAddr>, domain: Stri
                 if !sys.answers.is_empty() && !cf.answers.is_empty() && !sys.answers.iter().any(|a| cf.answers.contains(a)) {
                     findings.push(DnsFinding {
                         sev: Sev::Low,
-                        title: "Respuestas distintas entre tu DNS y uno público".into(),
-                        detail: format!(
-                            "Sistema: {} · Cloudflare: {}. Es normal en servicios con CDN, pero también puede indicar manipulación.",
-                            sys.answers.join(", "),
-                            cf.answers.join(", ")
-                        ),
+                        title: tr("Respuestas distintas entre tu DNS y uno público").into(),
+                        detail: tf("Sistema: {} · Cloudflare: {}. Es normal en servicios con CDN, pero también puede indicar manipulación.", &[&(sys.answers.join(", ")), &(cf.answers.join(", "))]),
                     });
                 }
             }
         }
         let server = system.first().copied().unwrap_or(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)));
         // 2. Registros del dominio
-        set_step("Consultando registros del dominio…");
+        set_step(tr("Consultando registros del dominio…"));
         let mut records = Vec::new();
         for (tn, t) in [("A", 1u16), ("AAAA", 28), ("MX", 15), ("NS", 2), ("TXT", 16), ("SOA", 6), ("CAA", 257)] {
             let vals = match query(server, &domain, t, false, to) {
@@ -432,61 +429,57 @@ pub fn start_analysis(state: Shared<DnsState>, system: Vec<IpAddr>, domain: Stri
         }
         let get = |n: &str| records.iter().find(|r| r.0 == n).map(|r| r.1.clone()).unwrap_or_default();
         if get("A").is_empty() && get("AAAA").is_empty() {
-            findings.push(DnsFinding { sev: Sev::Medium, title: "El dominio no tiene dirección (A/AAAA)".into(), detail: "No se puede abrir como web.".into() });
+            findings.push(DnsFinding { sev: Sev::Medium, title: tr("El dominio no tiene dirección (A/AAAA)").into(), detail: tr("No se puede abrir como web.").into() });
         }
         if get("AAAA").is_empty() {
-            findings.push(DnsFinding { sev: Sev::Info, title: "Sin IPv6 (AAAA)".into(), detail: "El dominio solo responde por IPv4.".into() });
+            findings.push(DnsFinding { sev: Sev::Info, title: tr("Sin IPv6 (AAAA)").into(), detail: tr("El dominio solo responde por IPv4.").into() });
         }
         let txt = get("TXT");
         if !get("MX").is_empty() {
             if !txt.iter().any(|t| t.contains("v=spf1")) {
-                findings.push(DnsFinding { sev: Sev::Medium, title: "Falta registro SPF".into(), detail: "Sin SPF es más fácil suplantar correos de este dominio.".into() });
+                findings.push(DnsFinding { sev: Sev::Medium, title: tr("Falta registro SPF").into(), detail: tr("Sin SPF es más fácil suplantar correos de este dominio.").into() });
             }
             let dmarc = query(server, &format!("_dmarc.{}", domain), 16, false, to)
                 .map(|(m, _)| m.answers.iter().any(|a| a.data.contains("v=DMARC1")))
                 .unwrap_or(false);
             if !dmarc {
-                findings.push(DnsFinding { sev: Sev::Medium, title: "Falta política DMARC".into(), detail: "Añade _dmarc con v=DMARC1 para proteger el correo.".into() });
+                findings.push(DnsFinding { sev: Sev::Medium, title: tr("Falta política DMARC").into(), detail: tr("Añade _dmarc con v=DMARC1 para proteger el correo.").into() });
             } else {
-                findings.push(DnsFinding { sev: Sev::Info, title: "DMARC configurado".into(), detail: "El dominio publica una política DMARC.".into() });
+                findings.push(DnsFinding { sev: Sev::Info, title: tr("DMARC configurado").into(), detail: tr("El dominio publica una política DMARC.").into() });
             }
         }
         if get("CAA").is_empty() {
-            findings.push(DnsFinding { sev: Sev::Low, title: "Sin registro CAA".into(), detail: "CAA limita qué autoridades pueden emitir certificados.".into() });
+            findings.push(DnsFinding { sev: Sev::Low, title: tr("Sin registro CAA").into(), detail: tr("CAA limita qué autoridades pueden emitir certificados.").into() });
         }
         // 3. DNSSEC
-        set_step("Comprobando DNSSEC…");
+        set_step(tr("Comprobando DNSSEC…"));
         match query(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), &domain, 1, true, to) {
             Ok((m, _)) => {
                 let signed = m.answers.iter().any(|a| a.rtype == 46);
                 if m.flags & 0x0020 != 0 || signed {
-                    findings.push(DnsFinding { sev: Sev::Info, title: "DNSSEC válido".into(), detail: "Las respuestas están firmadas y verificadas (bit AD).".into() });
+                    findings.push(DnsFinding { sev: Sev::Info, title: tr("DNSSEC válido").into(), detail: tr("Las respuestas están firmadas y verificadas (bit AD).").into() });
                 } else {
-                    findings.push(DnsFinding { sev: Sev::Low, title: "Sin DNSSEC".into(), detail: "Las respuestas no están firmadas; son más fáciles de falsificar.".into() });
+                    findings.push(DnsFinding { sev: Sev::Low, title: tr("Sin DNSSEC").into(), detail: tr("Las respuestas no están firmadas; son más fáciles de falsificar.").into() });
                 }
             }
-            Err(e) => findings.push(DnsFinding { sev: Sev::Info, title: "No se pudo comprobar DNSSEC".into(), detail: e }),
+            Err(e) => findings.push(DnsFinding { sev: Sev::Info, title: tr("No se pudo comprobar DNSSEC").into(), detail: e }),
         }
         // 4. Secuestro de NXDOMAIN
-        set_step("Buscando redirecciones de dominios inexistentes…");
+        set_step(tr("Buscando redirecciones de dominios inexistentes…"));
         let fake = format!("no-existe-{:x}.example.com", rand_u64() & 0xFFFFFFFF);
         match query(server, &fake, 1, false, to) {
             Ok((m, _)) if m.rcode == 0 && !m.answers.is_empty() => findings.push(DnsFinding {
                 sev: Sev::High,
-                title: "Tu DNS responde a dominios inexistentes".into(),
-                detail: format!(
-                    "{} devolvió {}. El proveedor o un intruso redirige errores (secuestro de NXDOMAIN).",
-                    fake,
-                    m.answers.first().map(|a| a.data.clone()).unwrap_or_default()
-                ),
+                title: tr("Tu DNS responde a dominios inexistentes").into(),
+                detail: tf("{} devolvió {}. El proveedor o un intruso redirige errores (secuestro de NXDOMAIN).", &[&(fake), &(m.answers.first().map(|a| a.data.clone()).unwrap_or_default())]),
             }),
-            Ok(_) => findings.push(DnsFinding { sev: Sev::Info, title: "Sin secuestro de NXDOMAIN".into(), detail: "Los dominios inexistentes se informan correctamente.".into() }),
+            Ok(_) => findings.push(DnsFinding { sev: Sev::Info, title: tr("Sin secuestro de NXDOMAIN").into(), detail: tr("Los dominios inexistentes se informan correctamente.").into() }),
             Err(_) => {}
         }
         let mut s = lock(&state);
         s.findings = findings;
         s.running = false;
-        s.step = "Análisis terminado".into();
+        s.step = tr("Análisis terminado").into();
         ctx.request_repaint();
     });
 }

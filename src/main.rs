@@ -4,15 +4,19 @@ use eframe::egui;
 
 mod app;
 mod capture;
+mod config;
 mod dns;
+mod i18n;
 mod ids;
 mod monitor;
 mod netscan;
 mod packet;
+mod pages_extra;
 mod ping;
 mod ports;
 mod qoe;
 mod security;
+mod tools;
 mod util;
 mod widgets;
 

@@ -1,4 +1,5 @@
 //! Descubrimiento de equipos de la subred y escáner de puertos con lectura de banners.
+use crate::i18n::{tr, tf};
 use crate::egui;
 use crate::ids::{Ids, Sev};
 use crate::ping::{ping_once, resolve, tcp_probe, Probe};
@@ -27,15 +28,15 @@ pub enum Kind {
 impl Kind {
     pub fn label(&self) -> &'static str {
         match self {
-            Kind::Router => "Router",
-            Kind::ThisPc => "Este equipo",
-            Kind::Computer => "Ordenador",
-            Kind::Phone => "Móvil/Tablet",
-            Kind::Printer => "Impresora",
-            Kind::Server => "Servidor",
-            Kind::Media => "TV/Multimedia",
-            Kind::Iot => "IoT/Cámara",
-            Kind::Unknown => "Desconocido",
+            Kind::Router => tr("Router"),
+            Kind::ThisPc => tr("Este equipo"),
+            Kind::Computer => tr("Ordenador"),
+            Kind::Phone => tr("Móvil/Tablet"),
+            Kind::Printer => tr("Impresora"),
+            Kind::Server => tr("Servidor"),
+            Kind::Media => tr("TV/Multimedia"),
+            Kind::Iot => tr("IoT/Cámara"),
+            Kind::Unknown => tr("Desconocido"),
         }
     }
     pub fn icon(&self) -> &'static str {
@@ -104,7 +105,7 @@ fn guess_kind(h: &Host, is_gw: bool, is_self: bool) -> Kind {
         Kind::Server
     } else if v.contains("ubiquiti") || v.contains("tp-link") || v.contains("netgear") || v.contains("cisco") {
         Kind::Router
-    } else if v.contains("privada") {
+    } else if v.contains(tr("privada")) {
         Kind::Phone
     } else if p(22) || p(80) {
         Kind::Computer
@@ -209,8 +210,8 @@ pub fn start_subnet_scan(info: NetInfo, state: Shared<SubnetScan>, stop: Arc<Ato
             let mut ids = lock(&ids);
             for h in &hosts {
                 if !previous.contains(&h.ip) {
-                    ids.raise(Sev::Info, "Nuevo dispositivo", &h.ip.to_string(),
-                        format!("Apareció {} {} {} desde el último escaneo.", h.ip, h.mac, h.vendor), &h.ip.to_string());
+                    ids.raise(Sev::Info, tr("Nuevo dispositivo"), &h.ip.to_string(),
+                        tf("Apareció {} {} {} desde el último escaneo.", &[&(h.ip), &(h.mac), &(h.vendor)]), &h.ip.to_string());
                 }
             }
         }
@@ -258,16 +259,16 @@ pub fn parse_ports(spec: &str) -> Result<Vec<u16>, String> {
     let mut v = Vec::new();
     for part in spec.split(|c| c == ',' || c == ' ').filter(|s| !s.is_empty()) {
         if let Some((a, b)) = part.split_once('-') {
-            let a: u16 = a.trim().parse().map_err(|_| format!("Rango no válido: {}", part))?;
-            let b: u16 = b.trim().parse().map_err(|_| format!("Rango no válido: {}", part))?;
+            let a: u16 = a.trim().parse().map_err(|_| tf("Rango no válido: {}", &[&(part)]))?;
+            let b: u16 = b.trim().parse().map_err(|_| tf("Rango no válido: {}", &[&(part)]))?;
             if a == 0 || a > b {
-                return Err(format!("Rango no válido: {}", part));
+                return Err(tf("Rango no válido: {}", &[&(part)]));
             }
             v.extend(a..=b);
         } else {
-            let p: u16 = part.parse().map_err(|_| format!("Puerto no válido: {}", part))?;
+            let p: u16 = part.parse().map_err(|_| tf("Puerto no válido: {}", &[&(part)]))?;
             if p == 0 {
-                return Err("El puerto 0 no es válido".into());
+                return Err(tr("El puerto 0 no es válido").into());
             }
             v.push(p);
         }
@@ -313,7 +314,7 @@ pub fn start_port_scan(target: String, ports: Vec<u16>, timeout_ms: u64, banners
         let t0 = Instant::now();
         let Some(ip) = resolve(&target) else {
             let mut s = lock(&state);
-            s.error = Some(format!("No se pudo resolver «{}»", target));
+            s.error = Some(tf("No se pudo resolver «{}»", &[&(target)]));
             s.running = false;
             ctx.request_repaint();
             return;

@@ -1,5 +1,6 @@
 //! Calidad de experiencia (QoE): latencia, jitter, pérdida, DNS, conexión y velocidad de descarga
 //! traducidos a una nota para voz, vídeo, juegos y navegación.
+use crate::i18n::{tr, tf};
 use crate::ping::{measure, mos, resolve, stats, Method, Stats};
 use crate::util::*;
 use crate::egui;
@@ -40,15 +41,15 @@ pub struct QoeState {
 
 pub fn verdict(score: f64) -> &'static str {
     if score >= 85.0 {
-        "Excelente"
+        tr("Excelente")
     } else if score >= 70.0 {
-        "Buena"
+        tr("Buena")
     } else if score >= 50.0 {
-        "Aceptable"
+        tr("Aceptable")
     } else if score >= 30.0 {
-        "Mala"
+        tr("Mala")
     } else {
-        "Muy mala"
+        tr("Muy mala")
     }
 }
 
@@ -76,7 +77,7 @@ fn parse_url(url: &str) -> Option<(String, u16, String)> {
 
 fn download(url: &str, max_secs: f64, state: &Shared<QoeState>, ctx: &egui::Context) -> Result<f64, String> {
     let (host, port, path) = parse_url(url).ok_or("La dirección debe empezar por http://")?;
-    let addr: SocketAddr = (host.as_str(), port).to_socket_addrs().map_err(|e| e.to_string())?.next().ok_or("Sin dirección")?;
+    let addr: SocketAddr = (host.as_str(), port).to_socket_addrs().map_err(|e| e.to_string())?.next().ok_or(tr("Sin dirección"))?;
     let mut s = TcpStream::connect_timeout(&addr, Duration::from_secs(5)).map_err(|e| format!("No conecta: {}", e))?;
     s.set_read_timeout(Some(Duration::from_secs(5))).ok();
     s.write_all(format!("GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: RedVision\r\nConnection: close\r\n\r\n", path, host).as_bytes())
@@ -98,7 +99,7 @@ fn download(url: &str, max_secs: f64, state: &Shared<QoeState>, ctx: &egui::Cont
         };
         if t0.is_none() {
             if !buf.starts_with(b"HTTP/1.1 200") && !buf.starts_with(b"HTTP/1.0 200") {
-                return Err(format!("El servidor respondió: {}", printable(&buf[..n.min(40)], 40)));
+                return Err(tf("El servidor respondió: {}", &[&(printable(&buf[..n.min(40)], 40))]));
             }
             t0 = Some(Instant::now());
             continue;
@@ -115,7 +116,7 @@ fn download(url: &str, max_secs: f64, state: &Shared<QoeState>, ctx: &egui::Cont
     }
     let el = t0.map(|t| t.elapsed().as_secs_f64()).unwrap_or(0.0);
     if el <= 0.0 || total == 0 {
-        return Err("No se recibieron datos".into());
+        return Err(tr("No se recibieron datos").into());
     }
     Ok(total as f64 / el)
 }
@@ -126,7 +127,7 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
         s.running = true;
         s.progress = 0.0;
         s.live_down = None;
-        s.step = "Midiendo la red local…".into();
+        s.step = tr("Midiendo la red local…").into();
     }
     thread::spawn(move || {
         let step = |t: &str, p: f32| {
@@ -141,7 +142,7 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
             let v: Vec<Option<f64>> = (0..10).map(|_| measure(IpAddr::V4(gw), Method::Icmp, 1000)).collect();
             r.gw = stats(&v);
         }
-        step("Midiendo latencia a Internet…", 0.2);
+        step(tr("Midiendo latencia a Internet…"), 0.2);
         let inet = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1));
         let mut v: Vec<Option<f64>> = Vec::new();
         for i in 0..20 {
@@ -156,7 +157,7 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
             thread::sleep(Duration::from_millis(100));
         }
         r.inet = stats(&v);
-        step("Midiendo el tiempo de DNS…", 0.45);
+        step(tr("Midiendo el tiempo de DNS…"), 0.45);
         if let Some(d) = dns {
             let times: Vec<f64> = ["example.com", "wikipedia.org", "debian.org"]
                 .iter()
@@ -166,14 +167,14 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
                 r.dns_ms = Some(times.iter().sum::<f64>() / times.len() as f64);
             }
         }
-        step("Midiendo el tiempo de conexión web…", 0.55);
+        step(tr("Midiendo el tiempo de conexión web…"), 0.55);
         if let Some(ip) = resolve("example.com") {
             let t: Vec<f64> = (0..3).filter_map(|_| measure(ip, Method::Tcp(443), 2000)).collect();
             if !t.is_empty() {
                 r.tcp_ms = Some(t.iter().sum::<f64>() / t.len() as f64);
             }
         }
-        step("Midiendo la velocidad de descarga (10 s)…", 0.65);
+        step(tr("Midiendo la velocidad de descarga (10 s)…"), 0.65);
         match download(&url, 10.0, &state, &ctx) {
             Ok(b) => r.down_bps = Some(b),
             Err(e) => r.down_err = Some(e),
@@ -196,18 +197,18 @@ pub fn start_qoe(state: Shared<QoeState>, gateway: Option<Ipv4Addr>, dns: Option
         };
         let web = 0.4 * low(r.dns_ms.unwrap_or(500.0), 20.0, 300.0) + 0.4 * low(r.tcp_ms.unwrap_or(800.0), 30.0, 400.0) + 0.2 * low(lat, 20.0, 200.0);
         r.scores = vec![
-            AppScore { name: "Llamadas de voz (VoIP)", score: voz, detail: format!("MOS {:.2} de 4.5 · factor R {:.0}", m, rr) },
-            AppScore { name: "Videollamadas", score: llamada, detail: format!("{:.0} ms · jitter {:.1} ms · pérdida {:.1}%", lat, r.inet.jitter, r.inet.loss) },
-            AppScore { name: "Vídeo en streaming", score: video, detail: mbps.map(|x| format!("{:.1} Mbps de descarga", x)).unwrap_or("sin prueba de velocidad".into()) },
-            AppScore { name: "Juegos en línea", score: juego, detail: format!("latencia {:.0} ms · jitter {:.1} ms", lat, r.inet.jitter) },
-            AppScore { name: "Navegación web", score: web, detail: format!("DNS {} · conexión {}", r.dns_ms.map(|x| format!("{:.0} ms", x)).unwrap_or("—".into()), r.tcp_ms.map(|x| format!("{:.0} ms", x)).unwrap_or("—".into())) },
+            AppScore { name: tr("Llamadas de voz (VoIP)"), score: voz, detail: tf("MOS {:.2} de 4.5 · factor R {:.0}", &[&(m), &(rr)]) },
+            AppScore { name: tr("Videollamadas"), score: llamada, detail: tf("{:.0} ms · jitter {:.1} ms · pérdida {:.1}%", &[&(lat), &(r.inet.jitter), &(r.inet.loss)]) },
+            AppScore { name: tr("Vídeo en streaming"), score: video, detail: mbps.map(|x| tf("{:.1} Mbps de descarga", &[&(x)])).unwrap_or(tr("sin prueba de velocidad").into()) },
+            AppScore { name: tr("Juegos en línea"), score: juego, detail: tf("latencia {:.0} ms · jitter {:.1} ms", &[&(lat), &(r.inet.jitter)]) },
+            AppScore { name: tr("Navegación web"), score: web, detail: tf("DNS {} · conexión {}", &[&(r.dns_ms.map(|x| format!("{:.0} ms", x)).unwrap_or("—".into())), &(r.tcp_ms.map(|x| format!("{:.0} ms", x)).unwrap_or("—".into()))]) },
         ];
         r.overall = r.scores.iter().map(|s| s.score).sum::<f64>() / r.scores.len() as f64;
         let mut s = lock(&state);
         s.result = Some(r);
         s.running = false;
         s.progress = 1.0;
-        s.step = "Medición terminada".into();
+        s.step = tr("Medición terminada").into();
         ctx.request_repaint();
     });
 }
