@@ -135,7 +135,9 @@ El DNS traduce nombres (como `ejemplo.com`) a direcciones IP. Un DNS lento o man
 
 Busca problemas de seguridad en equipos de tu red.
 
-**Seguridad de este equipo** (arriba de la página): pulsa **Revisar este equipo** y la app mira tu propio ordenador: si el cortafuegos está activo, el antivirus en tiempo real (Windows), si el disco está cifrado (BitLocker, FileVault o LUKS), qué servicios peligrosos están abiertos a toda la red, la configuración de SSH, si usas un DNS poco habitual, si hay un proxy configurado, si el archivo hosts redirige sitios importantes, si estás en una Wi-Fi abierta o con WEP y cuántos días lleva sin reiniciar. Cada problema viene con su explicación y cómo arreglarlo.
+**Seguridad de este equipo** (arriba de la página): pulsa **Revisar este equipo** y la app mira tu propio ordenador: si el cortafuegos está activo, el antivirus en tiempo real (Windows), si el disco está cifrado (BitLocker, FileVault o LUKS), qué servicios peligrosos están abiertos a toda la red, la configuración de SSH, si usas un DNS poco habitual, si hay un proxy configurado, si el archivo hosts redirige sitios importantes, si estás en una Wi-Fi abierta o con WEP y cuántos días lleva sin reiniciar. También comprueba el **arranque seguro** (Secure Boot), las **actualizaciones automáticas**, si hay **programas de control remoto** en marcha (TeamViewer, AnyDesk…, muy usados en estafas), qué **puertos abre tu router a Internet por UPnP**, si tu DNS **responde a webs que no existen** (señal de manipulación) y si **valida DNSSEC**. Cada problema viene con su explicación y cómo arreglarlo.
+
+**¿Contraseña filtrada?**: escribe una contraseña y la app te dice si aparece en filtraciones conocidas (Have I Been Pwned). La contraseña no sale de tu equipo: solo se envían los 5 primeros caracteres de su huella SHA-1. Necesita Internet y el programa `curl` (viene con Windows 10/11, macOS y casi todos los Linux).
 
 - **Auditar este equipo**: escribe una IP o un nombre.
 - **Auditar el router**: revisa tu puerta de enlace.

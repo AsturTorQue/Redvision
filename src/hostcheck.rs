@@ -165,6 +165,71 @@ fn dns_private(ip: &IpAddr) -> bool {
     }
 }
 
+fn secure_boot() -> Option<bool> {
+    if cfg!(windows) {
+        let out = run("reg", &["query", r"HKLM\SYSTEM\CurrentControlSet\Control\SecureBoot\State", "/v", "UEFISecureBootEnabled"])?;
+        let l = out.lines().find(|l| l.contains("UEFISecureBootEnabled"))?;
+        Some(l.trim_end().ends_with("0x1"))
+    } else if cfg!(target_os = "linux") {
+        let dir = std::fs::read_dir("/sys/firmware/efi/efivars").ok()?;
+        for e in dir.flatten() {
+            if e.file_name().to_string_lossy().starts_with("SecureBoot-") {
+                let b = std::fs::read(e.path()).ok()?;
+                return b.last().map(|v| *v == 1);
+            }
+        }
+        None
+    } else {
+        None
+    }
+}
+
+fn auto_updates() -> Option<bool> {
+    if cfg!(windows) {
+        let out = run("reg", &["query", r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU", "/v", "NoAutoUpdate"])?;
+        let l = out.lines().find(|l| l.contains("NoAutoUpdate"));
+        Some(!l.map(|l| l.trim_end().ends_with("0x1")).unwrap_or(false))
+    } else if cfg!(target_os = "macos") {
+        let out = run("defaults", &["read", "/Library/Preferences/com.apple.SoftwareUpdate", "AutomaticCheckEnabled"])?;
+        match out.trim() {
+            "0" => Some(false),
+            "1" => Some(true),
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+/// Programas de control remoto que están en marcha.
+fn remote_tools() -> Vec<String> {
+    const KNOWN: &[(&str, &str)] = &[
+        ("teamviewer", "TeamViewer"), ("anydesk", "AnyDesk"), ("rustdesk", "RustDesk"), ("splashtop", "Splashtop"),
+        ("logmein", "LogMeIn"), ("screenconnect", "ScreenConnect"), ("connectwise", "ScreenConnect"), ("ammyy", "Ammyy Admin"),
+        ("supremo", "Supremo"), ("remoting_host", "Chrome Remote Desktop"), ("chrome-remote-desktop", "Chrome Remote Desktop"),
+        ("x11vnc", "VNC"), ("vncserver", "VNC"), ("winvnc", "VNC"), ("tvnserver", "VNC"), ("meshagent", "MeshCentral"),
+        ("ultraviewer", "UltraViewer"), ("quickassist", "Asistencia rápida"), ("parsecd", "Parsec"), ("ateraagent", "Atera"),
+    ];
+    let names: Vec<String> = if cfg!(target_os = "linux") {
+        std::fs::read_dir("/proc").map(|rd| rd.flatten().filter_map(|e| std::fs::read_to_string(e.path().join("comm")).ok()).collect()).unwrap_or_default()
+    } else if cfg!(windows) {
+        run("tasklist", &["/fo", "csv", "/nh"]).unwrap_or_default().lines().map(|l| l.split(',').next().unwrap_or("").trim_matches('"').to_string()).collect()
+    } else {
+        run("ps", &["-axco", "comm"]).unwrap_or_default().lines().map(|l| l.to_string()).collect()
+    };
+    let mut found: Vec<String> = Vec::new();
+    for n in names {
+        let n = n.trim().to_lowercase();
+        if let Some((_, label)) = KNOWN.iter().find(|(k, _)| n.contains(k)) {
+            let label = tr(label).to_string();
+            if !found.contains(&label) {
+                found.push(label);
+            }
+        }
+    }
+    found
+}
+
 fn sshd_config() -> Option<(bool, bool)> {
     let t = std::fs::read_to_string("/etc/ssh/sshd_config").ok()?;
     let get = |key: &str| -> Option<String> {
@@ -282,6 +347,79 @@ pub fn check(info: &NetInfo) -> (Vec<LanFinding>, Vec<(String, String)>) {
             _ => {}
         }
     }
+    // DNS: ¿responde a dominios que no existen? ¿valida DNSSEC?
+    if let Some(&server) = dns_list.first() {
+        let t = std::time::Duration::from_millis(2500);
+        let nx = format!("rv{}-no-existe.example.com", (now_secs() * 1000.0) as u64 % 100_000_000);
+        if let Ok((m, _)) = crate::dns::query(server, &nx, 1, false, t) {
+            if m.rcode == 0 && m.answers.iter().any(|a| a.rtype == 1) {
+                let ip = m.answers.iter().find(|a| a.rtype == 1).map(|a| a.data.clone()).unwrap_or_default();
+                c.add(Sev::Medium, tr("Tu DNS responde a webs que no existen").into(),
+                    tf("Al pedir un dominio inventado devuelve {}. Lo hacen algunos proveedores para mostrar publicidad, pero también es la señal de un DNS manipulado.", &[&ip]),
+                    "Usa el DNS del router o uno público de confianza (1.1.1.1, 9.9.9.9).");
+            }
+        }
+        let dnssec = crate::dns::query(server, "dnssec-failed.org", 1, false, t);
+        if dnssec.is_err() {
+            c.fact("El DNS valida DNSSEC", yes_no(None));
+        }
+        if let Ok((m, _)) = dnssec {
+            let validates = m.rcode == 2;
+            c.fact("El DNS valida DNSSEC", yes_no(Some(validates)));
+            if !validates && m.rcode == 0 {
+                c.add(Sev::Low, tr("Tu DNS no comprueba las firmas DNSSEC").into(),
+                    tr("Acepta respuestas con la firma rota, así que no te protege de respuestas falsificadas.").into(),
+                    "Usa un DNS que valide DNSSEC, como 1.1.1.1, 9.9.9.9 u 8.8.8.8.");
+            }
+        }
+    }
+    // Arranque seguro (Secure Boot)
+    if let Some(sb) = secure_boot() {
+        c.fact("Arranque seguro (Secure Boot)", yes_no(Some(sb)));
+        if !sb {
+            c.add(Sev::Low, tr("El arranque seguro está desactivado").into(),
+                tr("Sin Secure Boot, un programa malicioso puede instalarse antes que el sistema y esconderse del antivirus.").into(),
+                "Actívalo en la configuración UEFI/BIOS del equipo (si tu sistema lo admite).");
+        }
+    }
+    // Actualizaciones automáticas
+    if let Some(au) = auto_updates() {
+        c.fact("Actualizaciones automáticas", yes_no(Some(au)));
+        if !au {
+            c.add(Sev::Medium, tr("Las actualizaciones automáticas están desactivadas").into(),
+                tr("Los fallos de seguridad corregidos no llegan a tu equipo hasta que actualizas a mano.").into(),
+                "Activa las actualizaciones automáticas del sistema.");
+        }
+    }
+    // Programas de control remoto en marcha
+    let remote = remote_tools();
+    c.fact("Programas de control remoto", if remote.is_empty() { tr("ninguno").into() } else { remote.join(", ") });
+    if !remote.is_empty() {
+        c.add(Sev::Medium, tf("Programas de control remoto en marcha: {}", &[&remote.join(", ")]),
+            tr("Permiten manejar este equipo a distancia. Son útiles, pero los estafadores los usan para robar: nunca dejes entrar a quien te llama diciendo ser soporte técnico.").into(),
+            "Si no los usas, ciérralos y desinstálalos.");
+    }
+    // Puertos que el router abre a Internet (UPnP)
+    match crate::netdiscover::upnp_port_mappings() {
+        Ok(Some((router, maps))) => {
+            c.fact("Puertos abiertos a Internet por UPnP", if maps.is_empty() { tr("ninguno").into() } else { maps.len().to_string() });
+            if !maps.is_empty() {
+                let list: Vec<String> = maps.iter().take(8).map(|m| {
+                    let d = if m.description.is_empty() { String::new() } else { format!(" «{}»", m.description) };
+                    format!("{} {} -> {}:{}{}", m.proto, m.external, m.internal_ip, m.internal_port, d)
+                }).collect();
+                c.add(if maps.len() > 3 { Sev::Medium } else { Sev::Low }, tf("El router abre {} puertos a Internet por UPnP", &[&maps.len()]),
+                    tf("Desde Internet se puede llegar a: {}. Los abren los propios programas (juegos, consolas, P2P) sin preguntar.", &[&list.join(" · ")]),
+                    "Si no reconoces alguno, apaga el programa que lo abrió o desactiva UPnP en el router.");
+            } else {
+                c.add(Sev::Info, tr("El router tiene UPnP activado").into(),
+                    tf("Ahora no hay puertos abiertos, pero cualquier programa de tu red ({}) puede abrir uno hacia Internet sin preguntar.", &[&router]),
+                    "Si no juegas en línea ni usas programas que lo necesiten, desactiva UPnP en el router.");
+            }
+        }
+        Ok(None) => c.fact("Puertos abiertos a Internet por UPnP", tr("UPnP desactivado").into()),
+        Err(_) => {}
+    }
     // Días sin reiniciar
     if let Some(d) = uptime_days() {
         c.fact("Días sin reiniciar", format!("{:.0}", d));
@@ -330,6 +468,19 @@ pub fn start(state: Shared<LanAudit>, info: NetInfo, ctx: egui::Context) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[ignore]
+    fn dns_probe() {
+        let t = std::time::Duration::from_millis(2500);
+        for s in crate::util::dns_servers() {
+            for (n, d) in [("rv123-no-existe.example.com", false), ("dnssec-failed.org", false)] {
+                match crate::dns::query(s, n, 1, d, t) {
+                    Ok((m, _)) => println!("{} {} rcode={} answers={}", s, n, m.rcode, m.answers.len()),
+                    Err(e) => println!("{} {} err {}", s, n, e),
+                }
+            }
+        }
+    }
     /// Revisión real de este equipo: `cargo test -- --ignored --nocapture host_here`
     #[test]
     #[ignore]

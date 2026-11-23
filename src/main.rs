@@ -25,6 +25,7 @@ mod pages_lan;
 mod pages_wifi;
 mod ping;
 mod ports;
+mod pwned;
 mod qoe;
 mod security;
 mod speedtest;

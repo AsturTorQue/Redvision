@@ -138,6 +138,100 @@ pub fn upnp_discover(wait_ms: u64) -> Result<Vec<UpnpDevice>, String> {
     Ok(out)
 }
 
+/// Una redirección de puertos que el router abre a Internet (UPnP).
+#[derive(Clone, Debug)]
+pub struct PortMap {
+    pub external: u16,
+    pub proto: String,
+    pub internal_ip: String,
+    pub internal_port: u16,
+    pub description: String,
+}
+
+/// Petición HTTP sencilla (sin cifrar) a una URL `http://host:puerto/ruta`.
+fn http_raw(url: &str, method: &str, extra: &str, body: &str) -> Option<String> {
+    let rest = url.strip_prefix("http://")?;
+    let (hp, path) = rest.split_once('/').map(|(a, b)| (a, format!("/{}", b))).unwrap_or((rest, "/".into()));
+    let addr = hp.parse::<SocketAddr>().or_else(|_| format!("{}:80", hp).parse::<SocketAddr>()).ok()?;
+    let mut s = TcpStream::connect_timeout(&addr, Duration::from_millis(1500)).ok()?;
+    s.set_read_timeout(Some(Duration::from_millis(2000))).ok();
+    let req = format!("{} {} HTTP/1.0\r\nHost: {}\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n{}", method, path, hp, extra, body.len(), body);
+    s.write_all(req.as_bytes()).ok()?;
+    let mut buf = Vec::new();
+    let _ = s.take(512 * 1024).read_to_end(&mut buf);
+    Some(String::from_utf8_lossy(&buf).to_string())
+}
+
+fn join_url(base: &str, path: &str) -> String {
+    if path.starts_with("http://") {
+        return path.to_string();
+    }
+    let host_end = base.strip_prefix("http://").and_then(|r| r.find('/')).map(|i| i + 7).unwrap_or(base.len());
+    let p = if path.starts_with('/') { path.to_string() } else { format!("/{}", path) };
+    format!("{}{}", &base[..host_end], p)
+}
+
+/// Pregunta al router (por UPnP) qué puertos tiene abiertos hacia Internet.
+/// Ok(None) si no hay ningún router con UPnP en la red.
+pub fn upnp_port_mappings() -> Result<Option<(String, Vec<PortMap>)>, String> {
+    let sock = UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+    sock.set_read_timeout(Some(Duration::from_millis(200))).ok();
+    let dest = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(239, 255, 255, 250)), 1900);
+    let mut locations: Vec<String> = Vec::new();
+    let t0 = Instant::now();
+    let mut buf = [0u8; 4096];
+    for st in ["urn:schemas-upnp-org:device:InternetGatewayDevice:1", "urn:schemas-upnp-org:device:InternetGatewayDevice:2"] {
+        let msg = format!("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: {}\r\n\r\n", st);
+        let _ = sock.send_to(msg.as_bytes(), dest);
+    }
+    while t0.elapsed() < Duration::from_millis(2500) {
+        if let Ok((n, _)) = sock.recv_from(&mut buf) {
+            let loc = header(&String::from_utf8_lossy(&buf[..n]), "location");
+            if !loc.is_empty() && !locations.contains(&loc) {
+                locations.push(loc);
+            }
+        }
+    }
+    for loc in locations {
+        let Some(xml) = http_raw(&loc, "GET", "", "") else { continue };
+        // Busca el servicio WANIPConnection o WANPPPConnection y su controlURL
+        for svc in ["WANIPConnection", "WANPPPConnection"] {
+            let Some(i) = xml.find(&format!("service:{}:", svc)) else { continue };
+            let urn_start = xml[..i].rfind('>').map(|j| j + 1).unwrap_or(i);
+            let urn: String = xml[urn_start..].chars().take_while(|c| *c != '<').collect();
+            let rest = &xml[i..];
+            let ctrl = xml_tag(rest, "controlURL");
+            if ctrl.is_empty() {
+                continue;
+            }
+            let url = join_url(&loc, &ctrl);
+            let mut maps = Vec::new();
+            for idx in 0..64 {
+                let body = format!(
+                    "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:GetGenericPortMappingEntry xmlns:u=\"{}\"><NewPortMappingIndex>{}</NewPortMappingIndex></u:GetGenericPortMappingEntry></s:Body></s:Envelope>",
+                    urn.trim(), idx
+                );
+                let extra = format!("Content-Type: text/xml; charset=\"utf-8\"\r\nSOAPAction: \"{}#GetGenericPortMappingEntry\"\r\n", urn.trim());
+                let Some(resp) = http_raw(&url, "POST", &extra, &body) else { break };
+                let ext = xml_tag(&resp, "NewExternalPort");
+                if ext.is_empty() {
+                    break;
+                }
+                maps.push(PortMap {
+                    external: ext.parse().unwrap_or(0),
+                    proto: xml_tag(&resp, "NewProtocol"),
+                    internal_ip: xml_tag(&resp, "NewInternalClient"),
+                    internal_port: xml_tag(&resp, "NewInternalPort").parse().unwrap_or(0),
+                    description: xml_tag(&resp, "NewPortMappingDescription"),
+                });
+            }
+            let router = loc.strip_prefix("http://").and_then(|r| r.split(':').next()).unwrap_or("").to_string();
+            return Ok(Some((router, maps)));
+        }
+    }
+    Ok(None)
+}
+
 // ---------------------------------------------------------------- Bonjour / mDNS
 
 #[derive(Clone)]

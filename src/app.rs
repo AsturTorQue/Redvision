@@ -135,6 +135,8 @@ pub struct NetApp {
     pub(crate) elevate: Shared<crate::elevate::ElevateState>,
     pub(crate) alert_mark: f64,
     pub(crate) host_audit: Shared<crate::lanaudit::LanAudit>,
+    pub(crate) pwned: Shared<crate::pwned::PwnedState>,
+    pub(crate) pwned_input: String,
 }
 
 fn load_logo(ctx: &egui::Context) -> egui::TextureHandle {
@@ -259,6 +261,8 @@ impl NetApp {
             elevate: shared(Default::default()),
             alert_mark,
             host_audit: shared(Default::default()),
+            pwned: shared(Default::default()),
+            pwned_input: String::new(),
         }
     }
 
@@ -1666,9 +1670,10 @@ impl NetApp {
                 }
                 if running {
                     ui.spinner();
+                    muted(ui, tr("Revisando este equipo…"));
                 }
-                muted(ui, tr("Cortafuegos, antivirus, cifrado de disco, servicios abiertos a la red, DNS, proxy, archivo hosts, Wi-Fi, SSH y días sin reiniciar."));
             });
+            muted(ui, tr("Cortafuegos, antivirus, cifrado, arranque seguro, actualizaciones, servicios abiertos, puertos abiertos a Internet (UPnP), control remoto, DNS, proxy, hosts, Wi-Fi, SSH y reinicios."));
             if score.is_none() {
                 return;
             }
@@ -1699,9 +1704,46 @@ impl NetApp {
         });
     }
 
+    /// ¿Aparece una contraseña en filtraciones? (Have I Been Pwned, k-anonimato)
+    fn pwned_card(&mut self, ui: &mut Ui) {
+        let (running, result) = {
+            let s = lock(&self.pwned);
+            (s.running, s.result.clone())
+        };
+        card(ui, tr("¿Contraseña filtrada?"), |ui| {
+            ui.horizontal(|ui| {
+                let resp = ui.add(egui::TextEdit::singleline(&mut self.pwned_input).password(true).hint_text(tr("Escribe una contraseña")).desired_width(240.0));
+                let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let btn = egui::Button::new(RichText::new(tr("Comprobar")).strong().color(ON_ACCENT())).fill(ACCENT());
+                if (ui.add_enabled(!running && !self.pwned_input.is_empty(), btn).clicked() || enter) && !self.pwned_input.is_empty() && !running {
+                    let pw = std::mem::take(&mut self.pwned_input);
+                    crate::pwned::start(self.pwned.clone(), pw, ui.ctx().clone());
+                }
+                if running {
+                    ui.spinner();
+                }
+            });
+            muted(ui, tr("La contraseña no sale de tu equipo: solo se envían los 5 primeros caracteres de su huella (SHA-1) a Have I Been Pwned, que devuelve las coincidencias y se comparan aquí."));
+            match result {
+                Some(Ok(0)) => {
+                    ui.label(RichText::new(tr("✔ No aparece en ninguna filtración conocida.")).color(GREEN()).strong());
+                }
+                Some(Ok(n)) => {
+                    ui.label(RichText::new(tf("✖ Esta contraseña aparece {} veces en filtraciones. No la uses: los atacantes la prueban primero.", &[&n])).color(RED()).strong());
+                }
+                Some(Err(e)) => {
+                    ui.label(RichText::new(e).color(ORANGE()));
+                }
+                None => {}
+            }
+        });
+    }
+
     fn page_security(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         page_title(ui, tr("Seguridad y vulnerabilidades"), tr("Busca servicios expuestos, contraseñas por defecto y software antiguo"));
         self.host_security_card(ui);
+        ui.add_space(8.0);
+        self.pwned_card(ui);
         ui.add_space(8.0);
         let hosts: Vec<String> = lock(&self.subnet).hosts.iter().map(|h| h.ip.to_string()).collect();
         let (running, step, done, total, findings, open, score) = {
