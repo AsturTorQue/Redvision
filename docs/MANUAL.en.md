@@ -135,6 +135,8 @@ DNS turns names (like `example.com`) into IP addresses. A slow or tampered DNS m
 
 Looks for security problems on devices in your network.
 
+**This computer's security** (top of the page): press **Check this computer** and the app looks at your own computer: whether the firewall is on, real-time antivirus (Windows), whether the disk is encrypted (BitLocker, FileVault or LUKS), which dangerous services are open to the whole network, the SSH settings, whether you use an unusual DNS, whether a proxy is configured, whether the hosts file redirects important sites, whether you're on an open or WEP Wi-Fi and how many days since the last restart. Every problem comes with an explanation and how to fix it.
+
 - **Audit this host**: type an IP or name.
 - **Audit the router**: checks your gateway.
 - **Audit whole network**: checks every host from the last scan.
@@ -147,7 +149,7 @@ Each finding has a level (Critical, High, Medium, Low, Info), an explanation and
 
 An intrusion detector that watches your network while the app is open.
 
-**Without capture** it watches for: ARP spoofing (someone impersonating the router), new devices on the network, watched hosts that stop responding and abnormal traffic spikes.
+**Without capture** it watches for: ARP spoofing (someone impersonating the router), new devices on the network, watched hosts that stop responding, abnormal traffic spikes and **router or DNS changes** (every 30 seconds it checks whether the gateway or DNS servers changed without you switching networks, a common trick to redirect your traffic).
 
 **With live capture** it also analyzes every packet and detects: port scans and network sweeps, stealth scans (NULL, FIN, XMAS), SYN and ICMP floods, rogue DHCP servers, DNS tunnels (data exfiltration), traffic to malware ports and passwords sent unencrypted.
 

@@ -9,6 +9,7 @@ mod desktop;
 mod dns;
 mod elevate;
 mod history;
+mod hostcheck;
 mod i18n;
 mod i18n_de;
 mod i18n_fr;

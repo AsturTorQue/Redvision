@@ -40,6 +40,7 @@ pub struct Alert {
 
 pub const RULES: &[(&str, &str)] = &[
     ("Escaneo de puertos", "Un equipo prueba 20 o más puertos distintos en 10 segundos."),
+    ("Cambio de router o DNS", "La puerta de enlace o los servidores DNS cambian sin que cambies de red."),
     ("Escaneo sigiloso", "Paquetes TCP NULL, FIN o XMAS, típicos de herramientas de escaneo."),
     ("Barrido de red", "Un equipo contacta 25 o más direcciones distintas en 10 segundos."),
     ("Inundación SYN", "Más de 300 intentos de conexión por segundo a un mismo destino."),

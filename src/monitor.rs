@@ -219,6 +219,30 @@ pub fn start_monitor(state: Shared<MonitorState>, info: Shared<NetInfo>, ids: Sh
                 s.conns = c;
                 s.conns_time = now_secs();
             }
+            // Cada 30 s: ¿ha cambiado el router o el DNS? (el malware que secuestra la navegación lo hace)
+            if tick % 30 == 15 {
+                let (gw_now, dns_now) = (gateway(), dns_servers());
+                let mut inf = lock(&info);
+                if inf.ready {
+                    if let (Some(old), Some(new)) = (inf.gateway, gw_now) {
+                        if old != new && !inf.gateway_guessed {
+                            lock(&ids).raise(Sev::High, tr("Cambio de router"), &new.to_string(),
+                                tf("La puerta de enlace ha cambiado de {} a {}. Es normal si cambiaste de red; si no, alguien podría estar desviando tu tráfico.", &[&old, &new]), &new.to_string());
+                        }
+                    }
+                    if !dns_now.is_empty() && !inf.dns.is_empty() && dns_now != inf.dns {
+                        let fmt = |v: &[std::net::IpAddr]| v.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(", ");
+                        lock(&ids).raise(Sev::High, tr("Cambio de DNS"), &fmt(&dns_now),
+                            tf("Los servidores DNS han cambiado de {} a {}. Si no lo hiciste tú ni cambiaste de red, revísalo: es un truco habitual para desviar la navegación.", &[&fmt(&inf.dns), &fmt(&dns_now)]), &fmt(&dns_now));
+                    }
+                    if gw_now.is_some() {
+                        inf.gateway = gw_now;
+                    }
+                    if !dns_now.is_empty() {
+                        inf.dns = dns_now;
+                    }
+                }
+            }
             if tick % 10 == 2 {
                 let table = arp_table();
                 let gw = lock(&info).gateway;

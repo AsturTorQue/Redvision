@@ -135,6 +135,8 @@ El DNS traduce nombres (como `ejemplo.com`) a direcciones IP. Un DNS lento o man
 
 Busca problemas de seguridad en equipos de tu red.
 
+**Seguridad de este equipo** (arriba de la página): pulsa **Revisar este equipo** y la app mira tu propio ordenador: si el cortafuegos está activo, el antivirus en tiempo real (Windows), si el disco está cifrado (BitLocker, FileVault o LUKS), qué servicios peligrosos están abiertos a toda la red, la configuración de SSH, si usas un DNS poco habitual, si hay un proxy configurado, si el archivo hosts redirige sitios importantes, si estás en una Wi-Fi abierta o con WEP y cuántos días lleva sin reiniciar. Cada problema viene con su explicación y cómo arreglarlo.
+
 - **Auditar este equipo**: escribe una IP o un nombre.
 - **Auditar el router**: revisa tu puerta de enlace.
 - **Auditar toda la red**: revisa todos los equipos del último escaneo.
@@ -147,7 +149,7 @@ Cada hallazgo tiene un nivel (Crítica, Alta, Media, Baja, Info), una explicaci�
 
 Un detector de intrusos que vigila tu red mientras la app está abierta.
 
-**Sin captura** vigila: suplantación ARP (alguien haciéndose pasar por el router), equipos nuevos en la red, equipos vigilados que dejan de responder y picos de tráfico anómalos.
+**Sin captura** vigila: suplantación ARP (alguien haciéndose pasar por el router), equipos nuevos en la red, equipos vigilados que dejan de responder, picos de tráfico anómalos y **cambios de router o de DNS** (cada 30 segundos comprueba si la puerta de enlace o los servidores DNS han cambiado sin que cambies de red, un truco habitual para desviar tu tráfico).
 
 **Con captura en vivo** además analiza cada paquete y detecta: escaneos de puertos y barridos de red, escaneos sigilosos (NULL, FIN, XMAS), inundaciones SYN e ICMP, servidores DHCP no autorizados, túneles DNS (exfiltración de datos), tráfico a puertos de malware y contraseñas enviadas sin cifrar.
 

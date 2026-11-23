@@ -134,6 +134,7 @@ pub struct NetApp {
     pub(crate) logo: egui::TextureHandle,
     pub(crate) elevate: Shared<crate::elevate::ElevateState>,
     pub(crate) alert_mark: f64,
+    pub(crate) host_audit: Shared<crate::lanaudit::LanAudit>,
 }
 
 fn load_logo(ctx: &egui::Context) -> egui::TextureHandle {
@@ -257,6 +258,7 @@ impl NetApp {
             logo: load_logo(&cc.egui_ctx),
             elevate: shared(Default::default()),
             alert_mark,
+            host_audit: shared(Default::default()),
         }
     }
 
@@ -947,7 +949,7 @@ impl NetApp {
             card(ui, "", |ui| {
                 ui.horizontal(|ui| {
                     ui.label(tr("Filtrar:"));
-                    ui.add(egui::TextEdit::singleline(&mut self.conn_filter).hint_text("puerto, IP, programa…").desired_width(240.0));
+                    ui.add(egui::TextEdit::singleline(&mut self.conn_filter).hint_text(tr("puerto, IP, programa…")).desired_width(240.0));
                     ui.checkbox(&mut self.conn_all, tr("Mostrar también las conexiones (no solo los puertos a la escucha)"));
                     if ui.button(format!("⬇ {}", tr("Exportar CSV"))).clicked() {
                         let rows = conns
@@ -998,7 +1000,7 @@ impl NetApp {
         card(ui, tr("Escáner de puertos TCP"), |ui| {
             ui.horizontal(|ui| {
                 ui.label(tr("Equipo:"));
-                ui.add(egui::TextEdit::singleline(&mut self.ps_target).hint_text("192.168.1.1 o nombre").desired_width(200.0));
+                ui.add(egui::TextEdit::singleline(&mut self.ps_target).hint_text(tr("192.168.1.1 o nombre")).desired_width(200.0));
                 ui.label(tr("Puertos:"));
                 ui.add(egui::TextEdit::singleline(&mut self.ps_spec).hint_text("comunes, 1-1024, 22,80,443, todos").desired_width(200.0));
                 ui.label(tr("Espera (ms):"));
@@ -1648,8 +1650,59 @@ impl NetApp {
         });
     }
 
+    /// «Seguridad de este equipo»: revisión del propio ordenador.
+    fn host_security_card(&mut self, ui: &mut Ui) {
+        let (running, findings, facts, score) = {
+            let a = lock(&self.host_audit);
+            (a.running, a.findings.clone(), a.facts.clone(), a.score)
+        };
+        card(ui, tr("Seguridad de este equipo"), |ui| {
+            ui.horizontal(|ui| {
+                let btn = egui::Button::new(RichText::new(tr("Revisar este equipo")).strong().color(ON_ACCENT())).fill(ACCENT());
+                let auto = std::env::var("REDVISION_HOSTCHECK").is_ok() && score.is_none() && !running;
+                if ui.add_enabled(!running, btn).clicked() || auto {
+                    let info = lock(&self.info).clone();
+                    crate::hostcheck::start(self.host_audit.clone(), info, ui.ctx().clone());
+                }
+                if running {
+                    ui.spinner();
+                }
+                muted(ui, tr("Cortafuegos, antivirus, cifrado de disco, servicios abiertos a la red, DNS, proxy, archivo hosts, Wi-Fi, SSH y días sin reiniciar."));
+            });
+            if score.is_none() {
+                return;
+            }
+            ui.add_space(4.0);
+            ui.horizontal_top(|ui| {
+                gauge(ui, score.map(|s| s as f64), tr("de 100"), 120.0);
+                ui.add_space(10.0);
+                egui::Grid::new("hostfacts").num_columns(2).spacing([18.0, 3.0]).striped(true).show(ui, |ui| {
+                    for (k, v) in &facts {
+                        ui.label(RichText::new(k).color(MUTED()));
+                        ui.label(RichText::new(v).strong());
+                        ui.end_row();
+                    }
+                });
+            });
+            ui.add_space(4.0);
+            for f in &findings {
+                ui.horizontal(|ui| {
+                    badge(ui, f.sev.label(), sev_color(f.sev));
+                    ui.label(RichText::new(&f.title).strong());
+                });
+                ui.label(RichText::new(&f.detail).size(12.5).color(SUBTLE()));
+                if !f.fix.is_empty() {
+                    ui.label(RichText::new(tf("Cómo arreglarlo: {}", &[&f.fix])).color(GREEN()).size(12.5));
+                }
+                ui.add_space(3.0);
+            }
+        });
+    }
+
     fn page_security(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         page_title(ui, tr("Seguridad y vulnerabilidades"), tr("Busca servicios expuestos, contraseñas por defecto y software antiguo"));
+        self.host_security_card(ui);
+        ui.add_space(8.0);
         let hosts: Vec<String> = lock(&self.subnet).hosts.iter().map(|h| h.ip.to_string()).collect();
         let (running, step, done, total, findings, open, score) = {
             let a = lock(&self.audit);
@@ -1659,7 +1712,7 @@ impl NetApp {
         card(ui, "", |ui| {
             ui.horizontal(|ui| {
                 ui.label(tr("Equipo:"));
-                ui.add(egui::TextEdit::singleline(&mut self.audit_target).hint_text("IP o nombre").desired_width(200.0));
+                ui.add(egui::TextEdit::singleline(&mut self.audit_target).hint_text(tr("IP o nombre")).desired_width(200.0));
                 if running {
                     if danger(ui, tr("Detener")).clicked() {
                         self.audit_stop.store(true, Ordering::Relaxed);
@@ -1867,7 +1920,7 @@ impl NetApp {
         ui.add_space(6.0);
         card(ui, tr("Equipos vigilados (ping cada 5 s)"), |ui| {
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.watch_input).hint_text("IP o nombre, p. ej. 192.168.1.20 o google.com").desired_width(300.0));
+                ui.add(egui::TextEdit::singleline(&mut self.watch_input).hint_text(tr("IP o nombre, p. ej. 192.168.1.20 o google.com")).desired_width(300.0));
                 if primary(ui, tr("Añadir")).clicked() {
                     let h = std::mem::take(&mut self.watch_input);
                     self.add_watch(h);
