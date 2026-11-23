@@ -17,6 +17,7 @@ mod netdiscover;
 mod netscan;
 mod packet;
 mod pages_extra;
+mod pages_help;
 mod pages_lan;
 mod ping;
 mod ports;

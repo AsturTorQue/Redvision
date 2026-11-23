@@ -222,4 +222,10 @@ pub const FR: &[&str] = &[
     "Problèmes trouvés",
     "oui",
     "non",
+    "Manuel d'utilisation",
+    "Comment utiliser chaque partie de RedVisión, pas à pas",
+    "Le manuel complet existe en espagnol et en anglais ; la version anglaise est affichée.",
+    "Rechercher dans le manuel :",
+    "Sommaire",
+    "Aucun résultat pour «{}».",
 ];

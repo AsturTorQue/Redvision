@@ -2,6 +2,9 @@
 
 Analizador de red de escritorio para **Linux, Windows y macOS**, escrito en Rust con egui.
 
+📖 **Manual de uso**: [español](docs/MANUAL.es.md) · [English](docs/MANUAL.en.md). También está dentro de la
+app, en el apartado «Manual de uso», con buscador.
+
 ## Funciones
 
 - **Panel**: resumen en tiempo real (equipo, router, dispositivos, alertas, tráfico y latencia).

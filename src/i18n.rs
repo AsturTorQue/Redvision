@@ -850,6 +850,12 @@ const TABLE: &[(&str, &str, &str)] = &[
     ("Problemas encontrados", "Problems found", "Problemas encontrados"),
     ("sí", "yes", "sim"),
     ("no", "no", "não"),
+    ("Manual de uso", "User manual", "Manual de uso"),
+    ("Cómo usar cada parte de RedVisión, paso a paso", "How to use every part of RedVisión, step by step", "Como usar cada parte do RedVisión, passo a passo"),
+    ("El manual completo está disponible en español e inglés; se muestra la versión en inglés.", "The full manual is available in Spanish and English.", "O manual completo está disponível em espanhol e inglês; é mostrada a versão em inglês."),
+    ("Buscar en el manual:", "Search the manual:", "Pesquisar no manual:"),
+    ("Índice", "Contents", "Índice"),
+    ("Sin resultados para «{}».", "No results for «{}».", "Sem resultados para «{}»."),
 ];
 
 #[cfg(test)]

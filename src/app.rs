@@ -35,6 +35,7 @@ pub(crate) enum Tab {
     LanAudit,
     Tools,
     Settings,
+    Help,
 }
 
 const TABS: &[(Tab, &str, &str)] = &[
@@ -53,6 +54,7 @@ const TABS: &[(Tab, &str, &str)] = &[
     (Tab::LanAudit, "📋", "Diagnóstico de la LAN"),
     (Tab::Tools, "🔧", "Herramientas"),
     (Tab::Settings, "⚙", "Ajustes"),
+    (Tab::Help, "📖", "Manual de uso"),
 ];
 
 pub struct NetApp {
@@ -120,6 +122,8 @@ pub struct NetApp {
     pub(crate) mac_lookup: String,
     pub(crate) tx: crate::pages_extra::ToolsState,
     pub(crate) lan: crate::pages_lan::LanState,
+    pub(crate) help_search: String,
+    pub(crate) help_jump: Option<usize>,
 }
 
 impl NetApp {
@@ -222,6 +226,8 @@ impl NetApp {
             mac_lookup: String::new(),
             tx: Default::default(),
             lan: Default::default(),
+            help_search: std::env::var("REDVISION_HELP_SEARCH").unwrap_or_default(),
+            help_jump: None,
         }
     }
 
@@ -240,6 +246,7 @@ impl NetApp {
             "lanaudit" => Tab::LanAudit,
             "tools" => Tab::Tools,
             "settings" => Tab::Settings,
+            "help" => Tab::Help,
             _ => Tab::Dashboard,
         }
     }
@@ -418,6 +425,7 @@ impl eframe::App for NetApp {
                     Tab::Speed => self.page_speed(ui),
                     Tab::LanAudit => self.page_lanaudit(ui),
                     Tab::Tools => self.page_tools(ui),
+                    Tab::Help => self.page_help(ui),
                     Tab::Settings => self.page_settings(ui, ctx),
                     Tab::Capture => {}
                 });
