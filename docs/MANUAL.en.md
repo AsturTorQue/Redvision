@@ -72,7 +72,7 @@ It has two tabs:
 
 Shows network traffic packet by packet, like a simpler Wireshark.
 
-**Rights needed for live capture:**
+**Rights needed for live capture:** the easiest way is the **Elevate to administrator** button at the bottom of the side menu while the app has no rights. It asks for your password (or the Windows confirmation) and reopens the app with the rights it needs. On Linux it only gives the app the capture permission, without running the whole app as root. Manually:
 
 - **Linux**: run the app with `sudo`, or grant it once: `sudo setcap cap_net_raw,cap_net_admin=eip /path/to/redvision`.
 - **Windows**: install Wireshark (includes Npcap and dumpcap) and run RedVisión as administrator.
@@ -196,6 +196,20 @@ Optionally, **Include load test** measures *bufferbloat*: how much latency rises
 
 You'll get a health score, your network's facts and every problem with its fix.
 
+## Wi-Fi analyzer
+
+If the computer has a Wi-Fi card (or a USB Wi-Fi adapter), this page shows the networks around you even while you're on cable. Without a card, the page says so.
+
+- **Your Wi-Fi connection**: network, BSSID (the specific access point), channel and band, link speed and signal strength in dBm, with a chart of the signal over time. As a guide: above -55 dBm is excellent, down to -67 good, down to -75 fair, and below that poor.
+- **Recommended channels**: how busy each 2.4 GHz and 5 GHz channel is and which is the **freest channel**. On 2.4 GHz use only channels 1, 6 or 11.
+- **Spectrum**: each network is drawn as a bell centred on its channel and as tall as its signal. Overlapping bells mean those networks interfere with each other.
+- **Security and problems**: warns if your network is open or uses WEP or old WPA, if another network has your name with different security (possible fake access point), if your signal is weak, if you're on 2.4 GHz when 5 GHz is available, if your channel is crowded, and about nearby open or hidden networks.
+- **Nearby networks**: a table with name, BSSID, vendor, channel, band, signal and security. It can be exported to CSV.
+
+Press **Scan Wi-Fi networks** or tick **Refresh every 10 s** to follow the signal as you move around.
+
+Requirements: on Linux it uses NetworkManager (`nmcli`); on Windows, `netsh` (Windows 11 asks for **location** permission to list networks); on macOS, the system information (it may not show the BSSID).
+
 ## Tools
 
 - **My public IP**: your Internet IP, country, city and provider (uses the ip-api.com service).
@@ -264,7 +278,8 @@ Use **Speed between computers**: server on one, measurement on the other.
 
 ## Common problems
 
-- **"No permission to capture"**: see the rights in "Packet capture".
+- **"No permission to capture"**: press **Elevate to administrator** in the side menu or see the rights in "Packet capture".
+- **On Windows (for example in a virtual machine) the app doesn't open or closes by itself**: the app tries OpenGL first and, if there isn't any, it reopens itself with DirectX (in software if needed) and remembers it. If it still fails you'll see a message with the cause, also saved in `%APPDATA%\RedVision\error.log`. You can force the engine with `redvision.exe --renderer wgpu` (DirectX) or `--renderer glow` (OpenGL); to go back to automatic, delete `%APPDATA%\RedVision\renderer`. Turning on 3D acceleration in the VM helps but isn't required.
 - **A device I know is on doesn't appear**: it may block ping and have no open ports. Try scanning its ports directly.
 - **Traceroute doesn't work on Linux**: install the `traceroute` package (or `iputils-tracepath`).
 - **Speed between computers won't connect**: start the server on the other computer and open TCP port 5201 in its firewall.

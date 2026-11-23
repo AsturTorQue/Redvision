@@ -18,6 +18,8 @@ app, en el apartado «Manual de uso», con buscador.
 - **Vulnerabilidades**: servicios expuestos, accesos anónimos, SNMP «public», UPnP, software antiguo.
 - **Intrusos y anomalías**: escaneos, suplantación ARP, DHCP no autorizado, inundaciones, túneles DNS, credenciales en claro, equipos nuevos o caídos, picos de tráfico.
 - **Monitorización**: tráfico por interfaz y disponibilidad de equipos vigilados.
+- **Analizador Wi-Fi**: redes cercanas, tu conexión y su señal, espectro y canales más libres en 2.4 y 5 GHz,
+  y avisos de seguridad (red abierta, WEP/WPA antiguo, posible punto de acceso falso).
 - **Velocidad entre equipos**: como iperf, un equipo hace de servidor (puerto TCP 5201) y el otro mide
   bajada, subida y latencia con varias conexiones en paralelo.
 - **Diagnóstico de la LAN**: dirección y DHCP, pérdida y latencia hasta el router, velocidad y dúplex del
@@ -55,6 +57,17 @@ los paquetes y los sube a Releases solo. Cada cambio en `main` también se compi
 - **macOS**: ejecutar con `sudo` (usa `tcpdump`).
 
 El resto de funciones no necesitan permisos especiales. La ruta (traceroute) usa `traceroute`/`tracepath` en Linux y macOS y `tracert` en Windows.
+
+## Si no abre en Windows (máquina virtual)
+
+El `.exe` incluye el runtime de C (no hace falta instalar nada) y dos motores gráficos: prueba OpenGL y, si
+no hay, se reabre con DirectX (por software si hace falta) y lo recuerda. Si falla, muestra el motivo y lo
+guarda en `%APPDATA%\RedVision\error.log`. Opciones: `--renderer wgpu` (DirectX) o `--renderer glow` (OpenGL).
+
+## Permisos de administrador
+
+El botón **Elevar a administrador** (menú lateral) reabre la app con permisos para capturar paquetes:
+`pkexec` en Linux (solo da el permiso de captura), UAC en Windows y la contraseña de macOS.
 
 ## Compilar a mano
 

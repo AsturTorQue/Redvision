@@ -9,8 +9,9 @@ fn main() {
     let c = (s / 2.0, s / 2.0);
     let r_out = s * 0.47;
     let ring = s * 0.035;
-    let accent = [34.0, 211.0, 238.0];
-    let bg = [8.0, 40.0, 56.0];
+    // Colores del tema «Medianoche»: violeta sobre morado oscuro.
+    let accent = [192.0, 132.0, 252.0];
+    let bg = [46.0, 24.0, 84.0];
     let nodes = [(c.0, c.1 - s * 0.2), (c.0 - s * 0.19, c.1 + s * 0.13), (c.0 + s * 0.19, c.1 + s * 0.13)];
     let seg_dist = |px: f32, py: f32, a: (f32, f32), b: (f32, f32)| {
         let (dx, dy) = (b.0 - a.0, b.1 - a.1);

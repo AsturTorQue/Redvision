@@ -47,6 +47,9 @@ pub fn load() -> Settings {
             s.lang = i;
         }
     }
+    if let Ok(v) = std::env::var("REDVISION_ZOOM") {
+        s.zoom = v.parse::<f32>().unwrap_or(s.zoom).clamp(0.7, 1.6);
+    }
     if let Ok(v) = std::env::var("REDVISION_THEME") {
         s.theme = v.parse().unwrap_or(s.theme);
     }

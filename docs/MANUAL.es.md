@@ -72,7 +72,7 @@ Tiene dos pestañas:
 
 Muestra el tráfico de red paquete a paquete, como Wireshark pero más sencillo.
 
-**Permisos necesarios para capturar en vivo:**
+**Permisos necesarios para capturar en vivo:** lo más fácil es pulsar **Elevar a administrador**, el botón que aparece abajo en el menú lateral mientras la app no tiene permisos. Pide la contraseña (o la confirmación de Windows) y vuelve a abrir la app con los permisos necesarios. En Linux solo le da a la app el permiso de captura, sin ejecutarla entera como root. A mano:
 
 - **Linux**: abre la app con `sudo`, o dale permiso una sola vez: `sudo setcap cap_net_raw,cap_net_admin=eip /ruta/a/redvision`.
 - **Windows**: instala Wireshark (incluye Npcap y dumpcap) y abre RedVisión como administrador.
@@ -196,6 +196,20 @@ Opcionalmente, **Incluir prueba de carga** mide el *bufferbloat*: cuánto sube l
 
 Obtendrás una nota de salud, los datos de tu red y cada problema con su solución.
 
+## Analizador Wi-Fi
+
+Si el equipo tiene tarjeta Wi-Fi (o un adaptador USB Wi-Fi), este apartado muestra las redes que hay alrededor aunque estés conectado por cable. Si no hay tarjeta, la página lo indica.
+
+- **Tu conexión Wi-Fi**: red, BSSID (el punto de acceso concreto), canal y banda, velocidad del enlace e intensidad de la señal en dBm, con una gráfica de la señal en el tiempo. Como referencia: más de -55 dBm es excelente, hasta -67 buena, hasta -75 aceptable y por debajo, mala.
+- **Canales recomendados**: lo ocupado que está cada canal en 2.4 GHz y 5 GHz y cuál es el **canal más libre**. En 2.4 GHz usa solo los canales 1, 6 u 11.
+- **Espectro**: cada red se dibuja como una campana centrada en su canal y tan alta como su señal. Si varias campanas se pisan, esas redes se interfieren.
+- **Seguridad y problemas**: avisa si tu red está abierta o usa WEP o WPA antiguo, si hay otra red con tu mismo nombre y distinta seguridad (posible punto de acceso falso), si tu señal es débil, si estás en 2.4 GHz pudiendo usar 5 GHz, si tu canal está saturado y de las redes abiertas u ocultas cercanas.
+- **Redes cercanas**: tabla con nombre, BSSID, fabricante, canal, banda, señal y seguridad. Se puede exportar a CSV.
+
+Pulsa **Buscar redes Wi-Fi** o activa **Actualizar cada 10 s** para seguir la señal mientras te mueves.
+
+Requisitos: en Linux usa NetworkManager (`nmcli`); en Windows, `netsh` (Windows 11 pide el permiso de **ubicación** para listar redes); en macOS, la información del sistema (puede no mostrar el BSSID).
+
 ## Herramientas
 
 - **Mi IP pública**: tu IP en Internet, país, ciudad y proveedor (usa el servicio ip-api.com).
@@ -264,7 +278,8 @@ Usa **Velocidad entre equipos**: servidor en uno, medición en el otro.
 
 ## Problemas frecuentes
 
-- **«No hay permiso para capturar»**: mira los permisos en «Captura de paquetes».
+- **«No hay permiso para capturar»**: pulsa **Elevar a administrador** en el menú lateral o mira los permisos en «Captura de paquetes».
+- **En Windows (por ejemplo en una máquina virtual) la app no abre o se cierra sola**: la app intenta primero con OpenGL y, si no hay, se reabre sola con DirectX (por software si hace falta) y lo recuerda. Si aun así falla, verás un mensaje con la causa y se guarda en `%APPDATA%\RedVision\error.log`. Puedes forzar el motor con `redvision.exe --renderer wgpu` (DirectX) o `--renderer glow` (OpenGL); para volver al automático borra `%APPDATA%\RedVision\renderer`. En la VM conviene activar la aceleración 3D, aunque no es obligatoria.
 - **No aparece un equipo que sé que está encendido**: puede bloquear el ping y no tener puertos abiertos. Prueba a escanear sus puertos directamente.
 - **El traceroute no funciona en Linux**: instala el paquete `traceroute` (o `iputils-tracepath`).
 - **La velocidad entre equipos no conecta**: activa el servidor en el otro equipo y abre el puerto TCP 5201 en su cortafuegos.

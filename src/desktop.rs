@@ -16,15 +16,34 @@ pub fn register() {
     let exe = std::env::var_os("APPIMAGE").map(PathBuf::from).or_else(|| std::env::current_exe().ok());
     let Some(exe) = exe else { return };
     let icon_dir = data.join("icons/hicolor/512x512/apps");
-    let icon = icon_dir.join("redvision.png");
     let png: &[u8] = include_bytes!("../assets/icon.png");
+    // El nombre del icono cambia con su contenido: así el escritorio no sigue mostrando
+    // el icono anterior que tenía guardado en caché.
+    let hash = png.iter().fold(0xcbf29ce484222325u64, |h, b| (h ^ *b as u64).wrapping_mul(0x100000001b3));
+    let icon_name = format!("redvision-{:08x}", hash as u32);
+    let icon = icon_dir.join(format!("{}.png", icon_name));
     if std::fs::read(&icon).map(|b| b != png).unwrap_or(true) {
         let _ = std::fs::create_dir_all(&icon_dir);
         let _ = std::fs::write(&icon, png);
+        // Quitar iconos de versiones anteriores
+        if let Ok(rd) = std::fs::read_dir(&icon_dir) {
+            for e in rd.flatten() {
+                let n = e.file_name().to_string_lossy().to_string();
+                if (n == "redvision.png" || n.starts_with("redvision-")) && n != format!("{}.png", icon_name) {
+                    let _ = std::fs::remove_file(e.path());
+                }
+            }
+        }
+        // Si el tema de iconos del usuario tiene caché, actualizarla
+        let hicolor = data.join("icons/hicolor");
+        if hicolor.join("icon-theme.cache").exists() {
+            let _ = crate::util::command("gtk-update-icon-cache").args(["-f", "-t"]).arg(&hicolor).output();
+        }
     }
     let entry = format!(
-        "[Desktop Entry]\nType=Application\nName=RedVisión\nGenericName=Network analyzer\nComment=Mapa de red, puertos, captura de paquetes, latencia, DNS y seguridad\nExec=\"{}\"\nIcon=redvision\nTerminal=false\nCategories=Network;Monitor;System;\nStartupWMClass={}\n",
+        "[Desktop Entry]\nType=Application\nName=RedVisión\nGenericName=Network analyzer\nComment=Mapa de red, puertos, captura de paquetes, latencia, DNS y seguridad\nExec=\"{}\"\nIcon={}\nTerminal=false\nCategories=Network;Monitor;System;\nStartupWMClass={}\n",
         exe.display(),
+        icon_name,
         APP_ID
     );
     let apps = data.join("applications");

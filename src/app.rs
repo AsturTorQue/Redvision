@@ -33,6 +33,7 @@ pub(crate) enum Tab {
     Monitor,
     Speed,
     LanAudit,
+    Wifi,
     Tools,
     Settings,
     Help,
@@ -52,6 +53,7 @@ const TABS: &[(Tab, &str, &str)] = &[
     (Tab::Monitor, "📈", "Monitorización"),
     (Tab::Speed, "⚡", "Velocidad entre equipos"),
     (Tab::LanAudit, "📋", "Diagnóstico de la LAN"),
+    (Tab::Wifi, "📶", "Analizador Wi-Fi"),
     (Tab::Tools, "🔧", "Herramientas"),
     (Tab::Settings, "⚙", "Ajustes"),
     (Tab::Help, "📖", "Manual de uso"),
@@ -124,6 +126,17 @@ pub struct NetApp {
     pub(crate) lan: crate::pages_lan::LanState,
     pub(crate) help_search: String,
     pub(crate) help_jump: Option<usize>,
+    pub(crate) wifi: Shared<crate::wifi::WifiState>,
+    pub(crate) wifi_auto: bool,
+    pub(crate) logo: egui::TextureHandle,
+    pub(crate) elevate: Shared<crate::elevate::ElevateState>,
+}
+
+fn load_logo(ctx: &egui::Context) -> egui::TextureHandle {
+    let img = image::load_from_memory(include_bytes!("../assets/icon.png")).map(|i| i.to_rgba8()).unwrap_or_default();
+    let (w, h) = img.dimensions();
+    let color = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], img.as_raw());
+    ctx.load_texture("logo", color, egui::TextureOptions::LINEAR)
 }
 
 impl NetApp {
@@ -228,6 +241,10 @@ impl NetApp {
             lan: Default::default(),
             help_search: std::env::var("REDVISION_HELP_SEARCH").unwrap_or_default(),
             help_jump: None,
+            wifi: shared(Default::default()),
+            wifi_auto: false,
+            logo: load_logo(&cc.egui_ctx),
+            elevate: shared(Default::default()),
         }
     }
 
@@ -244,6 +261,7 @@ impl NetApp {
             "monitor" => Tab::Monitor,
             "speed" => Tab::Speed,
             "lanaudit" => Tab::LanAudit,
+            "wifi" => Tab::Wifi,
             "tools" => Tab::Tools,
             "settings" => Tab::Settings,
             "help" => Tab::Help,
@@ -328,20 +346,56 @@ impl NetApp {
     fn sidebar(&mut self, ui: &mut Ui) {
         ui.add_space(12.0);
         ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(Vec2::splat(34.0), Sense::hover());
-            let p = ui.painter();
-            p.circle_filled(r.center(), 16.0, ACCENT_BG());
-            p.circle_stroke(r.center(), 16.0, Stroke::new(2.0_f32, ACCENT()));
-            for (dx, dy) in [(-7.0, 5.0), (7.0, 5.0), (0.0, -7.0)] {
-                p.line_segment([r.center(), r.center() + Vec2::new(dx, dy)], Stroke::new(1.5_f32, ACCENT()));
-                p.circle_filled(r.center() + Vec2::new(dx, dy), 3.0, ACCENT());
-            }
+            // El mismo icono que la aplicación, sea cual sea el tema
+            let (r, _) = ui.allocate_exact_size(Vec2::splat(36.0), Sense::hover());
+            ui.painter().image(self.logo.id(), r, egui::Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
             ui.vertical(|ui| {
                 ui.label(RichText::new("RedVisión").size(19.0).strong().color(TEXT()));
                 ui.label(RichText::new(tr("Analizador de red")).size(11.5).color(MUTED()));
             });
         });
         ui.add_space(14.0);
+        // Pie fijo abajo y la lista de apartados con desplazamiento, para que con la
+        // interfaz grande ningún apartado quede oculto.
+        egui::TopBottomPanel::bottom("navfoot").frame(egui::Frame::new().fill(BG())).show_separator_line(false).show_inside(ui, |ui| {
+            ui.separator();
+            let info = lock(&self.info).clone();
+            ui.label(RichText::new(info.local_ip.map(|i| format!("IP {}", i)).unwrap_or(tr("Detectando red…").into())).color(MUTED()).size(12.0));
+            ui.label(RichText::new(format!("{} · {}", info.os, info.hostname)).color(MUTED()).size(12.0));
+            if info.admin {
+                ui.label(RichText::new(tr("Permisos de administrador")).color(GREEN()).size(12.0));
+            } else if crate::elevate::has_capture_capability() {
+                ui.label(RichText::new(tr("Permiso de captura concedido")).color(GREEN()).size(12.0));
+            } else {
+                ui.label(RichText::new(tr("Sin permisos de administrador")).color(AMBER()).size(12.0));
+                let (running, err) = {
+                    let e = lock(&self.elevate);
+                    (e.running, e.error.clone())
+                };
+                let hint = if cfg!(windows) {
+                    "Se reabre la app con permisos de administrador (Windows pedirá confirmación)."
+                } else if cfg!(target_os = "macos") {
+                    "Se reabre la app con permisos de administrador (macOS pedirá la contraseña)."
+                } else {
+                    "Pide la contraseña y da a la app permiso para capturar paquetes."
+                };
+                let btn = egui::Button::new(RichText::new(format!("🛡 {}", tr("Elevar a administrador"))).size(12.5));
+                if ui.add_enabled(!running, btn).on_hover_text(tr(hint)).clicked() {
+                    crate::elevate::start(self.elevate.clone(), ui.ctx().clone());
+                }
+                if running {
+                    ui.label(RichText::new(tr("Esperando la contraseña…")).color(MUTED()).size(11.5));
+                }
+                if let Some(e) = err {
+                    ui.add(egui::Label::new(RichText::new(e).color(RED()).size(11.5)).wrap());
+                }
+            }
+            ui.add_space(8.0);
+        });
+        egui::ScrollArea::vertical().id_salt("navscroll").auto_shrink([false, false]).show(ui, |ui| self.nav_items(ui));
+    }
+
+    fn nav_items(&mut self, ui: &mut Ui) {
         let alerts_hi = {
             let ids = lock(&self.ids);
             ids.count(Sev::Critical) + ids.count(Sev::High)
@@ -373,24 +427,24 @@ impl NetApp {
                 self.tab = *tab;
             }
         }
-        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-            ui.add_space(10.0);
-            let info = lock(&self.info).clone();
-            if info.admin {
-                ui.label(RichText::new(tr("Permisos de administrador")).color(GREEN()).size(12.0));
-            } else {
-                ui.label(RichText::new(tr("Sin permisos de administrador")).color(AMBER()).size(12.0));
-            }
-            ui.label(RichText::new(format!("{} · {}", info.os, info.hostname)).color(MUTED()).size(12.0));
-            ui.label(RichText::new(info.local_ip.map(|i| format!("IP {}", i)).unwrap_or(tr("Detectando red…").into())).color(MUTED()).size(12.0));
-            ui.separator();
-        });
     }
 }
 
 impl eframe::App for NetApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_screenshot(ctx);
+        // Ya se abrió la copia con permisos: cerrar esta (después de guardar los ajustes)
+        if lock(&self.elevate).close_now {
+            if self.settings != self.saved {
+                let _ = config::save(&self.settings);
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        // El zoom también puede cambiar con Ctrl + / Ctrl −: guardarlo igual
+        let z = ctx.zoom_factor();
+        if (z - self.settings.zoom).abs() > 0.005 {
+            self.settings.zoom = z;
+        }
         self.settings.watched = lock(&self.monitor).watched.iter().map(|w| w.host.clone()).collect();
         if self.settings != self.saved && self.screenshot.is_none() {
             self.settings_msg = Some(match config::save(&self.settings) {
@@ -424,6 +478,7 @@ impl eframe::App for NetApp {
                     Tab::Monitor => self.page_monitor(ui),
                     Tab::Speed => self.page_speed(ui),
                     Tab::LanAudit => self.page_lanaudit(ui),
+                    Tab::Wifi => self.page_wifi(ui),
                     Tab::Tools => self.page_tools(ui),
                     Tab::Help => self.page_help(ui),
                     Tab::Settings => self.page_settings(ui, ctx),

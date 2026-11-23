@@ -358,19 +358,37 @@ impl NetApp {
         ui.add_space(8.0);
         ui.columns(2, |c| {
             card(&mut c[0], tr("Tamaño de la interfaz"), |ui| {
-                let mut pct = (self.settings.zoom * 100.0).round();
-                if ui.add(egui::Slider::new(&mut pct, 70.0..=160.0).step_by(10.0).suffix(" %")).changed() {
-                    self.settings.zoom = pct / 100.0;
-                    ctx.set_zoom_factor(self.settings.zoom);
-                }
+                // Botones en lugar de un deslizador: al cambiar el tamaño se redibuja todo y un
+                // deslizador quedaría bajo el ratón en otra posición y seguiría cambiando.
+                let current = (self.settings.zoom * 100.0).round() as u32;
+                ui.horizontal_wrapped(|ui| {
+                    if ui.add_enabled(current > 70, egui::Button::new(" − ")).clicked() {
+                        self.settings.zoom = ((current - 10) as f32 / 100.0).max(0.7);
+                        ctx.set_zoom_factor(self.settings.zoom);
+                    }
+                    for pct in [80u32, 90, 100, 110, 125, 150] {
+                        if ui.selectable_label(current == pct, format!("{} %", pct)).clicked() {
+                            self.settings.zoom = pct as f32 / 100.0;
+                            ctx.set_zoom_factor(self.settings.zoom);
+                        }
+                    }
+                    if ui.add_enabled(current < 160, egui::Button::new(" + ")).clicked() {
+                        self.settings.zoom = ((current + 10) as f32 / 100.0).min(1.6);
+                        ctx.set_zoom_factor(self.settings.zoom);
+                    }
+                });
+                muted(ui, tf("Tamaño actual: {} %", &[&current]));
                 ui.add_space(6.0);
                 ui.checkbox(&mut self.settings.scan_on_start, tr("Escanear la red al abrir la app"));
             });
             card(&mut c[1], tr("Acerca de"), |ui| {
                 ui.label(RichText::new("RedVisión").size(18.0).strong().color(ACCENT()));
                 muted(ui, tf("Versión {}", &[&env!("CARGO_PKG_VERSION")]));
-                ui.label(tr("Analizador de red ligero y multiplataforma (Linux, Windows y macOS)."));
-                ui.hyperlink("https://github.com/AsturTorQue/Redvision");
+                // En un layout vertical normal el texto largo se ajusta sin estirar los espacios
+                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                    ui.add(egui::Label::new(tr("Analizador de red ligero y multiplataforma (Linux, Windows y macOS).")).wrap());
+                    ui.hyperlink("https://github.com/AsturTorQue/Redvision");
+                });
             });
         });
         if let Some(m) = &self.settings_msg {

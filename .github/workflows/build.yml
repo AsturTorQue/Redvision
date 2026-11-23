@@ -117,6 +117,8 @@ jobs:
   macos:
     name: macOS ${{ matrix.arch }} (.dmg)
     runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     strategy:
       fail-fast: false
       matrix:
@@ -168,7 +170,17 @@ jobs:
           mkdir -p dmg dist
           cp -R $APP dmg/
           ln -s /Applications dmg/Applications
-          hdiutil create -volname "RedVision" -srcfolder dmg -ov -format UDZO dist/RedVision-$VERSION-macos-${{ matrix.arch }}.dmg
+          # hdiutil falla a veces en las máquinas de GitHub («Resource busy»): reintentar
+          DMG=dist/RedVision-$VERSION-macos-${{ matrix.arch }}.dmg
+          for i in 1 2 3 4 5; do
+            if hdiutil create -volname "RedVision" -srcfolder dmg -fs HFS+ -ov -format UDZO "$DMG"; then
+              break
+            fi
+            echo "hdiutil falló (intento $i), reintentando…"
+            hdiutil info | grep -o '/dev/disk[0-9]*' | xargs -n1 hdiutil detach -force 2>/dev/null || true
+            sleep $((i * 5))
+          done
+          test -f "$DMG"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}
