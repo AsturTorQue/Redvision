@@ -72,7 +72,7 @@ It has two tabs:
 
 Shows network traffic packet by packet, like a simpler Wireshark.
 
-**Rights needed for live capture:** the easiest way is the **Elevate to administrator** button at the bottom of the side menu while the app has no rights. It asks for your password (or the Windows confirmation) and reopens the app with the rights it needs. On Linux it only gives the app the capture permission, without running the whole app as root. Manually:
+**Rights needed for live capture:** the easiest way is the **Elevate to superuser** button (called **Elevate to administrator** on Windows) at the bottom of the side menu while the app has no superuser rights. It asks for your password (or the Windows confirmation) and reopens the app with the rights it needs. On Linux it only gives the app the capture permission, without running the whole app as root. Manually:
 
 - **Linux**: run the app with `sudo`, or grant it once: `sudo setcap cap_net_raw,cap_net_admin=eip /path/to/redvision`.
 - **Windows**: install Wireshark (includes Npcap and dumpcap) and run RedVisión as administrator.
@@ -278,7 +278,7 @@ Use **Speed between computers**: server on one, measurement on the other.
 
 ## Common problems
 
-- **"No permission to capture"**: press **Elevate to administrator** in the side menu or see the rights in "Packet capture".
+- **"No permission to capture"**: press **Elevate to superuser** (**administrator** on Windows) in the side menu or see the rights in "Packet capture".
 - **On Windows (for example in a virtual machine) the app doesn't open or closes by itself**: the app tries OpenGL first and, if there isn't any, it reopens itself with DirectX (in software if needed) and remembers it. If it still fails you'll see a message with the cause, also saved in `%APPDATA%\RedVision\error.log`. You can force the engine with `redvision.exe --renderer wgpu` (DirectX) or `--renderer glow` (OpenGL); to go back to automatic, delete `%APPDATA%\RedVision\renderer`. Turning on 3D acceleration in the VM helps but isn't required.
 - **A device I know is on doesn't appear**: it may block ping and have no open ports. Try scanning its ports directly.
 - **Traceroute doesn't work on Linux**: install the `traceroute` package (or `iputils-tracepath`).

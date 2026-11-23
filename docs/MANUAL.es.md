@@ -72,7 +72,7 @@ Tiene dos pestañas:
 
 Muestra el tráfico de red paquete a paquete, como Wireshark pero más sencillo.
 
-**Permisos necesarios para capturar en vivo:** lo más fácil es pulsar **Elevar a administrador**, el botón que aparece abajo en el menú lateral mientras la app no tiene permisos. Pide la contraseña (o la confirmación de Windows) y vuelve a abrir la app con los permisos necesarios. En Linux solo le da a la app el permiso de captura, sin ejecutarla entera como root. A mano:
+**Permisos necesarios para capturar en vivo:** lo más fácil es pulsar **Elevar a superusuario** (en Windows se llama **Elevar a administrador**), el botón que aparece abajo en el menú lateral mientras la app no tiene permisos de superusuario. Pide la contraseña (o la confirmación de Windows) y vuelve a abrir la app con los permisos necesarios. En Linux solo le da a la app el permiso de captura, sin ejecutarla entera como root. A mano:
 
 - **Linux**: abre la app con `sudo`, o dale permiso una sola vez: `sudo setcap cap_net_raw,cap_net_admin=eip /ruta/a/redvision`.
 - **Windows**: instala Wireshark (incluye Npcap y dumpcap) y abre RedVisión como administrador.
@@ -278,7 +278,7 @@ Usa **Velocidad entre equipos**: servidor en uno, medición en el otro.
 
 ## Problemas frecuentes
 
-- **«No hay permiso para capturar»**: pulsa **Elevar a administrador** en el menú lateral o mira los permisos en «Captura de paquetes».
+- **«No hay permiso para capturar»**: pulsa **Elevar a superusuario** (**administrador** en Windows) en el menú lateral o mira los permisos en «Captura de paquetes».
 - **En Windows (por ejemplo en una máquina virtual) la app no abre o se cierra sola**: la app intenta primero con OpenGL y, si no hay, se reabre sola con DirectX (por software si hace falta) y lo recuerda. Si aun así falla, verás un mensaje con la causa y se guarda en `%APPDATA%\RedVision\error.log`. Puedes forzar el motor con `redvision.exe --renderer wgpu` (DirectX) o `--renderer glow` (OpenGL); para volver al automático borra `%APPDATA%\RedVision\renderer`. En la VM conviene activar la aceleración 3D, aunque no es obligatoria.
 - **No aparece un equipo que sé que está encendido**: puede bloquear el ping y no tener puertos abiertos. Prueba a escanear sus puertos directamente.
 - **El traceroute no funciona en Linux**: instala el paquete `traceroute` (o `iputils-tracepath`).

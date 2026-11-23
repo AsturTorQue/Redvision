@@ -66,7 +66,7 @@ guarda en `%APPDATA%\RedVision\error.log`. Opciones: `--renderer wgpu` (DirectX)
 
 ## Permisos de administrador
 
-El botón **Elevar a administrador** (menú lateral) reabre la app con permisos para capturar paquetes:
+El botón **Elevar a superusuario** (**administrador** en Windows, en el menú lateral) reabre la app con permisos para capturar paquetes:
 `pkexec` en Linux (solo da el permiso de captura), UAC en Windows y la contraseña de macOS.
 
 ## Compilar a mano

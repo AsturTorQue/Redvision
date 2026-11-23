@@ -47,17 +47,47 @@ fn map() -> &'static HashMap<&'static str, [&'static str; 4]> {
             .map(|(i, (es, en, pt))| {
                 let fr = crate::i18n_fr::FR.get(i).copied().unwrap_or(en);
                 let de = crate::i18n_de::DE.get(i).copied().unwrap_or(en);
-                (*es, [*en, *pt, fr, de])
+                if cfg!(windows) {
+                    (*es, [*en, *pt, fr, de])
+                } else {
+                    (*es, [su(en, 1), su(pt, 2), su(fr, 3), su(de, 4)])
+                }
             })
             .collect()
     })
+}
+
+/// Textos en español que cambian en Linux y macOS (donde se dice «superusuario»).
+fn es_su() -> &'static HashMap<&'static str, &'static str> {
+    static M: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+    M.get_or_init(|| TABLE.iter().filter(|(es, _, _)| es.to_lowercase().contains("administrador")).map(|(es, _, _)| (*es, su(es, 0))).collect())
+}
+
+/// En Windows el permiso máximo se llama «administrador»; en Linux y macOS, «superusuario» (root).
+/// Cambia esa palabra en un texto ya traducido (`l` = idioma: 0 es, 1 en, 2 pt, 3 fr, 4 de).
+fn su(text: &'static str, l: usize) -> &'static str {
+    let pairs: &[(&str, &str)] = match l {
+        0 => &[("administrador", "superusuario")],
+        1 => &[("administrator", "superuser")],
+        2 => &[("administrador", "superusuário")],
+        3 => &[("administrateur", "super-utilisateur")],
+        _ => &[("Administratorrechte", "Superuser-Rechte"), ("Administrator", "Superuser")],
+    };
+    if !pairs.iter().any(|(a, _)| text.contains(a)) {
+        return text;
+    }
+    let mut out = text.to_string();
+    for (a, b) in pairs {
+        out = out.replace(a, b);
+    }
+    Box::leak(out.into_boxed_str())
 }
 
 /// Traduce un texto (escrito en español) al idioma activo.
 pub fn tr(s: &str) -> &str {
     let l = lang();
     if l == 0 {
-        return s;
+        return if cfg!(windows) { s } else { es_su().get(s).copied().unwrap_or(s) };
     }
     match map().get(s) {
         Some(v) => v[l - 1],
