@@ -5,10 +5,14 @@ use eframe::egui;
 mod app;
 mod capture;
 mod config;
+mod desktop;
 mod dns;
 mod i18n;
+mod i18n_de;
+mod i18n_fr;
 mod ids;
 mod monitor;
+mod netdiscover;
 mod netscan;
 mod packet;
 mod pages_extra;
@@ -34,7 +38,11 @@ fn main() -> eframe::Result<()> {
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1400.0, 880.0])
         .with_min_inner_size([1000.0, 640.0])
-        .with_title("RedVisión — Analizador de red");
+        .with_title("RedVisión — Analizador de red")
+        .with_app_id(desktop::APP_ID);
+    if screenshot.is_none() {
+        desktop::register();
+    }
     if let Ok(img) = image::load_from_memory(include_bytes!("../assets/icon.png")) {
         let img = img.to_rgba8();
         let (width, height) = img.dimensions();

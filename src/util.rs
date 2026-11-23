@@ -529,7 +529,7 @@ pub fn vendor(mac: &str) -> String {
     }
     if let Ok(b) = u8::from_str_radix(&mac[..2], 16) {
         if b & 0x02 != 0 {
-            return "MAC privada (aleatoria)".into();
+            return crate::i18n::tr("MAC privada (aleatoria)").into();
         }
     }
     String::new()

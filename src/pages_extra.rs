@@ -8,6 +8,27 @@ use eframe::egui::{self, Align2, FontId, RichText, Sense, Stroke, Ui, Vec2};
 use std::net::Ipv4Addr;
 use std::sync::atomic::Ordering;
 
+#[derive(Default)]
+pub struct MtuState {
+    pub running: bool,
+    pub step: Option<u32>,
+    pub result: Option<Result<u32, String>>,
+}
+
+type Found<T> = Shared<(bool, Option<Result<Vec<T>, String>>)>;
+
+/// Estado de las herramientas de descubrimiento.
+#[derive(Default)]
+pub struct ToolsState {
+    pub mtu_target: String,
+    pub mtu: Shared<MtuState>,
+    pub upnp: Found<crate::netdiscover::UpnpDevice>,
+    pub mdns: Found<crate::netdiscover::MdnsService>,
+    pub arp: Vec<(Ipv4Addr, String)>,
+    pub arp_loaded: bool,
+    pub sys_text: Option<String>,
+}
+
 impl NetApp {
     pub(crate) fn send_wol(&mut self) {
         let info = lock(&self.info).clone();
@@ -131,6 +152,174 @@ impl NetApp {
                     }
                 }
             });
+        });
+        ui.add_space(8.0);
+        self.tools_more(ui);
+    }
+
+    fn tools_more(&mut self, ui: &mut Ui) {
+        let (mtu_running, mtu_step, mtu_result) = {
+            let m = lock(&self.tx.mtu);
+            (m.running, m.step, m.result.clone())
+        };
+        if self.tx.mtu_target.is_empty() {
+            self.tx.mtu_target = "1.1.1.1".into();
+        }
+        if !self.tx.arp_loaded {
+            self.tx.arp = arp_table();
+            self.tx.arp_loaded = true;
+        }
+        ui.columns(2, |c| {
+            card(&mut c[0], tr("Tamaño máximo de paquete (MTU de la ruta)"), |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Destino:"));
+                    ui.add(egui::TextEdit::singleline(&mut self.tx.mtu_target).desired_width(180.0));
+                    if ui.add_enabled(!mtu_running, egui::Button::new(tr("Medir MTU"))).clicked() {
+                        let (st, host, ctx) = (self.tx.mtu.clone(), self.tx.mtu_target.trim().to_string(), ui.ctx().clone());
+                        {
+                            let mut m = lock(&st);
+                            m.running = true;
+                            m.result = None;
+                        }
+                        std::thread::spawn(move || {
+                            let st2 = st.clone();
+                            let c2 = ctx.clone();
+                            let r = crate::netdiscover::path_mtu(&host, &move |n| {
+                                lock(&st2).step = Some(n);
+                                c2.request_repaint();
+                            });
+                            let mut m = lock(&st);
+                            m.running = false;
+                            m.step = None;
+                            m.result = Some(r);
+                            ctx.request_repaint();
+                        });
+                    }
+                    if mtu_running {
+                        ui.spinner();
+                    }
+                });
+                if let Some(n) = mtu_step {
+                    muted(ui, tf("Probando con {} bytes…", &[&n]));
+                }
+                match mtu_result {
+                    Some(Ok(m)) => {
+                        ui.label(RichText::new(tf("MTU de la ruta: {} bytes", &[&m])).size(18.0).strong().color(if m >= 1500 { GREEN() } else { AMBER() }));
+                        if m < 1500 {
+                            muted(ui, tr("Menor de 1500: hay un túnel, VPN o PPPoE en el camino. Si algunas webs no cargan, baja la MTU del equipo a este valor."));
+                        }
+                    }
+                    Some(Err(e)) => notice(ui, &e, RED()),
+                    None => muted(ui, tr("Encuentra el paquete más grande que llega sin partirse; útil para problemas con VPN o webs que no cargan.")),
+                }
+            });
+            card(&mut c[1], tr("Tabla ARP del sistema"), |ui| {
+                if ui.button(tr("Actualizar")).clicked() {
+                    self.tx.arp = arp_table();
+                }
+                table_header(ui, &[(140.0, "IP"), (160.0, "MAC"), (200.0, tr("Fabricante"))]);
+                egui::ScrollArea::vertical().id_salt("arptable").max_height(200.0).show(ui, |ui| {
+                    for (i, (ip, mac)) in self.tx.arp.iter().enumerate() {
+                        table_row(ui, &[(140.0, ip.to_string(), TEXT()), (160.0, mac.clone(), MUTED()), (200.0, vendor(mac), SUBTLE())], false, i % 2 == 1);
+                    }
+                });
+            });
+        });
+        ui.add_space(8.0);
+        let (up_running, up_result) = {
+            let u = lock(&self.tx.upnp);
+            (u.0, u.1.clone())
+        };
+        card(ui, tr("Dispositivos UPnP (televisores, routers, NAS…)"), |ui| {
+            ui.horizontal(|ui| {
+                if ui.add_enabled(!up_running, egui::Button::new(tr("Buscar dispositivos UPnP"))).clicked() {
+                    let (st, ctx) = (self.tx.upnp.clone(), ui.ctx().clone());
+                    lock(&st).0 = true;
+                    std::thread::spawn(move || {
+                        let r = crate::netdiscover::upnp_discover(3000);
+                        *lock(&st) = (false, Some(r));
+                        ctx.request_repaint();
+                    });
+                }
+                if up_running {
+                    ui.spinner();
+                    muted(ui, tr("Buscando…"));
+                }
+            });
+            match up_result {
+                Some(Ok(devs)) if !devs.is_empty() => {
+                    table_header(ui, &[(130.0, "IP"), (220.0, tr("Nombre")), (160.0, tr("Fabricante")), (180.0, tr("Modelo")), (300.0, tr("Servidor"))]);
+                    for (i, d) in devs.iter().enumerate() {
+                        let row = [
+                            (130.0, d.ip.clone(), ACCENT()),
+                            (220.0, d.name.clone(), TEXT()),
+                            (160.0, d.maker.clone(), SUBTLE()),
+                            (180.0, d.model.clone(), SUBTLE()),
+                            (300.0, d.server.clone(), MUTED()),
+                        ];
+                        table_row(ui, &row, false, i % 2 == 1).on_hover_text(d.types.join("\n"));
+                    }
+                }
+                Some(Ok(_)) => muted(ui, tr("Sin respuestas UPnP.")),
+                Some(Err(e)) => notice(ui, &e, RED()),
+                None => {}
+            }
+        });
+        ui.add_space(8.0);
+        let (md_running, md_result) = {
+            let u = lock(&self.tx.mdns);
+            (u.0, u.1.clone())
+        };
+        card(ui, tr("Servicios Bonjour / mDNS (impresoras, Chromecast, AirPlay…)"), |ui| {
+            ui.horizontal(|ui| {
+                if ui.add_enabled(!md_running, egui::Button::new(tr("Buscar servicios mDNS"))).clicked() {
+                    let (st, ctx) = (self.tx.mdns.clone(), ui.ctx().clone());
+                    lock(&st).0 = true;
+                    std::thread::spawn(move || {
+                        let r = crate::netdiscover::mdns_discover();
+                        *lock(&st) = (false, Some(r));
+                        ctx.request_repaint();
+                    });
+                }
+                if md_running {
+                    ui.spinner();
+                    muted(ui, tr("Buscando…"));
+                }
+            });
+            match md_result {
+                Some(Ok(list)) if !list.is_empty() => {
+                    table_header(ui, &[(160.0, tr("Tipo")), (300.0, tr("Nombre")), (240.0, tr("Servicio")), (140.0, "IP")]);
+                    for (i, s) in list.iter().enumerate() {
+                        let label = crate::netdiscover::service_label(&s.kind);
+                        let row = [
+                            (160.0, tr(label).to_string(), ACCENT()),
+                            (300.0, s.instance.clone(), TEXT()),
+                            (240.0, s.kind.clone(), MUTED()),
+                            (140.0, s.ip.clone(), SUBTLE()),
+                        ];
+                        table_row(ui, &row, false, i % 2 == 1);
+                    }
+                }
+                Some(Ok(_)) => muted(ui, tr("Sin respuestas mDNS.")),
+                Some(Err(e)) => notice(ui, &e, RED()),
+                None => {}
+            }
+        });
+        ui.add_space(8.0);
+        card(ui, tr("Interfaces y rutas del sistema"), |ui| {
+            ui.horizontal(|ui| {
+                if ui.button(tr("Ver interfaces")).clicked() {
+                    self.tx.sys_text = Some(crate::netdiscover::system_interfaces());
+                }
+                if ui.button(tr("Ver rutas")).clicked() {
+                    self.tx.sys_text = Some(crate::netdiscover::system_routes());
+                }
+            });
+            if let Some(t) = &self.tx.sys_text {
+                egui::ScrollArea::both().id_salt("systext").max_height(260.0).show(ui, |ui| {
+                    ui.label(RichText::new(t).monospace().size(12.0).color(SUBTLE()));
+                });
+            }
         });
     }
 

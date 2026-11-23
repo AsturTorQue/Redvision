@@ -262,7 +262,7 @@ pub fn line_chart(ui: &mut Ui, height: f32, series: &[Series], fmt: &dyn Fn(f64)
         p.text(Pos2::new(plot.left() - 6.0, y), Align2::RIGHT_CENTER, fmt(maxv * i as f64 / 4.0), FontId::proportional(10.5), MUTED());
     }
     if n < 2 {
-        p.text(plot.center(), Align2::CENTER_CENTER, "Esperando datos…", FontId::proportional(13.0), MUTED());
+        p.text(plot.center(), Align2::CENTER_CENTER, crate::i18n::tr("Esperando datos…"), FontId::proportional(13.0), MUTED());
         return;
     }
     let x_of = |i: usize| plot.left() + plot.width() * i as f32 / (n - 1) as f32;

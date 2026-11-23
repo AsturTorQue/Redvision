@@ -114,6 +114,7 @@ pub struct NetApp {
     pub(crate) pubip_running: Arc<AtomicBool>,
     pub(crate) subnet_input: String,
     pub(crate) mac_lookup: String,
+    pub(crate) tx: crate::pages_extra::ToolsState,
 }
 
 impl NetApp {
@@ -214,6 +215,7 @@ impl NetApp {
             pubip_running: Arc::new(AtomicBool::new(false)),
             subnet_input: String::new(),
             mac_lookup: String::new(),
+            tx: Default::default(),
         }
     }
 

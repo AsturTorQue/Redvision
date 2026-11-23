@@ -5,7 +5,7 @@ use std::fmt::Display;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
-pub const LANGS: &[(&str, &str)] = &[("es", "Español"), ("en", "English"), ("pt", "Português")];
+pub const LANGS: &[(&str, &str)] = &[("es", "Español"), ("en", "English"), ("pt", "Português"), ("fr", "Français"), ("de", "Deutsch")];
 
 static LANG: AtomicUsize = AtomicUsize::new(0);
 
@@ -37,9 +37,20 @@ pub fn system_lang() -> usize {
     1
 }
 
-fn map() -> &'static HashMap<&'static str, [&'static str; 2]> {
-    static M: OnceLock<HashMap<&'static str, [&'static str; 2]>> = OnceLock::new();
-    M.get_or_init(|| TABLE.iter().map(|(es, en, pt)| (*es, [*en, *pt])).collect())
+/// Español -> [inglés, portugués, francés, alemán]. Francés y alemán van en el mismo orden que TABLE.
+fn map() -> &'static HashMap<&'static str, [&'static str; 4]> {
+    static M: OnceLock<HashMap<&'static str, [&'static str; 4]>> = OnceLock::new();
+    M.get_or_init(|| {
+        TABLE
+            .iter()
+            .enumerate()
+            .map(|(i, (es, en, pt))| {
+                let fr = crate::i18n_fr::FR.get(i).copied().unwrap_or(en);
+                let de = crate::i18n_de::DE.get(i).copied().unwrap_or(en);
+                (*es, [*en, *pt, fr, de])
+            })
+            .collect()
+    })
 }
 
 /// Traduce un texto (escrito en español) al idioma activo.
@@ -456,6 +467,28 @@ const TABLE: &[(&str, &str, &str)] = &[
     ("Ajustes guardados en {}", "Settings saved in {}", "Configurações salvas em {}"),
     ("Escanear la red al abrir la app", "Scan the network when the app opens", "Escanear a rede ao abrir o app"),
     ("Analizador de red ligero y multiplataforma (Linux, Windows y macOS).", "Lightweight cross-platform network analyzer (Linux, Windows and macOS).", "Analisador de rede leve e multiplataforma (Linux, Windows e macOS)."),
+    ("El destino no responde al ping.", "The target doesn't answer ping.", "O destino não responde ao ping."),
+    ("Tamaño máximo de paquete (MTU de la ruta)", "Maximum packet size (path MTU)", "Tamanho máximo de pacote (MTU da rota)"),
+    ("Medir MTU", "Measure MTU", "Medir MTU"),
+    ("Probando con {} bytes…", "Trying {} bytes…", "Testando com {} bytes…"),
+    ("MTU de la ruta: {} bytes", "Path MTU: {} bytes", "MTU da rota: {} bytes"),
+    ("Menor de 1500: hay un túnel, VPN o PPPoE en el camino. Si algunas webs no cargan, baja la MTU del equipo a este valor.", "Below 1500: there's a tunnel, VPN or PPPoE on the way. If some sites don't load, lower this computer's MTU to this value.", "Menor que 1500: há um túnel, VPN ou PPPoE no caminho. Se alguns sites não carregam, reduza a MTU do computador para esse valor."),
+    ("Encuentra el paquete más grande que llega sin partirse; útil para problemas con VPN o webs que no cargan.", "Finds the largest packet that arrives unfragmented; useful for VPN issues or sites that won't load.", "Encontra o maior pacote que chega sem ser fragmentado; útil para problemas com VPN ou sites que não carregam."),
+    ("Tabla ARP del sistema", "System ARP table", "Tabela ARP do sistema"),
+    ("Actualizar", "Refresh", "Atualizar"),
+    ("Dispositivos UPnP (televisores, routers, NAS…)", "UPnP devices (TVs, routers, NAS…)", "Dispositivos UPnP (TVs, roteadores, NAS…)"),
+    ("Buscar dispositivos UPnP", "Find UPnP devices", "Procurar dispositivos UPnP"),
+    ("Modelo", "Model", "Modelo"),
+    ("Sin respuestas UPnP.", "No UPnP replies.", "Sem respostas UPnP."),
+    ("Servicios Bonjour / mDNS (impresoras, Chromecast, AirPlay…)", "Bonjour / mDNS services (printers, Chromecast, AirPlay…)", "Serviços Bonjour / mDNS (impressoras, Chromecast, AirPlay…)"),
+    ("Buscar servicios mDNS", "Find mDNS services", "Procurar serviços mDNS"),
+    ("Sin respuestas mDNS.", "No mDNS replies.", "Sem respostas mDNS."),
+    ("Interfaces y rutas del sistema", "System interfaces and routes", "Interfaces e rotas do sistema"),
+    ("Ver interfaces", "Show interfaces", "Ver interfaces"),
+    ("Ver rutas", "Show routes", "Ver rotas"),
+    ("Escáner", "Scanner", "Scanner"),
+    ("Altavoz (AirPlay)", "Speaker (AirPlay)", "Alto-falante (AirPlay)"),
+    ("Archivos (SMB)", "Files (SMB)", "Arquivos (SMB)"),
     ("Cómo arreglarlo", "How to fix", "Como corrigir"),
     ("Equipo", "Host", "Host"),
     // backend: niveles, tipos, notas
@@ -684,4 +717,35 @@ const TABLE: &[(&str, &str, &str)] = &[
     ("No hay permiso para capturar ({}). Ejecuta la app con sudo, o dale permiso una vez con: sudo setcap cap_net_raw,cap_net_admin=eip <ruta de la app>", "No permission to capture ({}). Run the app with sudo, or grant it once with: sudo setcap cap_net_raw,cap_net_admin=eip <app path>", "Sem permissão para capturar ({}). Execute o app com sudo, ou dê permissão uma vez com: sudo setcap cap_net_raw,cap_net_admin=eip <caminho do app>"),
     ("La interfaz «{}» no existe", "Interface «{}» doesn't exist", "A interface «{}» não existe"),
     ("todas", "all", "todas"),
+    ("Esperando datos…", "Waiting for data…", "Aguardando dados…"),
+    ("MAC privada (aleatoria)", "Private (random) MAC", "MAC privado (aleatório)"),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn holes(s: &str) -> Vec<String> {
+        let mut v = Vec::new();
+        let mut rest = s;
+        while let Some(i) = rest.find('{') {
+            let j = rest[i..].find('}').map(|j| i + j + 1).unwrap_or(rest.len());
+            v.push(rest[i..j].to_string());
+            rest = &rest[j..];
+        }
+        v
+    }
+
+    #[test]
+    fn every_language_lines_up() {
+        for (name, list) in [("fr", crate::i18n_fr::FR), ("de", crate::i18n_de::DE)] {
+            assert_eq!(list.len(), TABLE.len(), "{}: número de textos", name);
+            for (i, (es, en, pt)) in TABLE.iter().enumerate() {
+                let h = holes(es);
+                assert_eq!(holes(en), h, "en {}: {}", i + 1, es);
+                assert_eq!(holes(pt), h, "pt {}: {}", i + 1, es);
+                assert_eq!(holes(list[i]), h, "{} {}: {} / {}", name, i + 1, es, list[i]);
+            }
+        }
+    }
+}
