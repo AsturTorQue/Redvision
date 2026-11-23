@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=RedVisión
+GenericName=Analizador de red
+Comment=Mapa de red, puertos, captura de paquetes, latencia, DNS, seguridad y monitorización
+Exec=redvision
+Icon=redvision
+Terminal=false
+Categories=Network;Monitor;System;
+Keywords=red;network;puertos;ports;pcap;dns;ping;seguridad;

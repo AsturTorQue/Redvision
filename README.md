@@ -18,9 +18,19 @@ Analizador de red de escritorio para **Linux, Windows y macOS**, escrito en Rust
 
 ## Descargas
 
-Cada cambio en `main` se compila automáticamente para Linux, Windows y macOS (Intel y Apple Silicon)
-en la pestaña **Actions** del repositorio. Al crear una etiqueta `v*` (por ejemplo `v0.1.0`)
-los ejecutables se publican en **Releases**.
+En **Releases** encontrarás, para cada versión:
+
+| Sistema | Archivo |
+|---|---|
+| Linux | `RedVision-x.y.z-linux-x86_64.AppImage` (dale permiso de ejecución y ábrelo), `redvision_x.y.z_amd64.deb`, `.tar.gz` |
+| Windows | `RedVision-x.y.z-windows-x64-setup.exe` (instalador) o `...-portable.exe` |
+| macOS | `RedVision-x.y.z-macos-arm64.dmg` (Apple Silicon) o `...-macos-x86_64.dmg` (Intel) |
+
+La app no está firmada: en Windows pulsa «Más información → Ejecutar de todas formas»; en macOS,
+la primera vez abre la app con clic derecho → «Abrir».
+
+Para publicar una versión nueva: `git tag v0.2.0 && git push origin v0.2.0`. GitHub Actions compila
+los paquetes y los sube a Releases solo. Cada cambio en `main` también se compila y deja los paquetes en **Actions**.
 
 ## Requisitos para capturar paquetes en vivo
 
