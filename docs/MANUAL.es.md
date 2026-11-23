@@ -210,6 +210,10 @@ Pulsa **Buscar redes Wi-Fi** o activa **Actualizar cada 10 s** para seguir la se
 
 Requisitos: en Linux usa NetworkManager (`nmcli`); en Windows, `netsh` (Windows 11 pide el permiso de **ubicación** para listar redes); en macOS, la información del sistema (puede no mostrar el BSSID).
 
+## Certificados HTTPS
+
+Está en el menú lateral, justo debajo de «Vulnerabilidades». Escribe uno o varios servidores (`debian.org mail.ejemplo.com:993`) y verás cuántos días le quedan a su certificado (en rojo si ha caducado o caduca en menos de 7 días, naranja y ámbar si queda menos de un mes), a quién cubre, quién lo emitió, el tipo de clave y firma, la cadena de certificados y qué versiones de TLS acepta (✔ en rojo para TLS 1.0 y 1.1, que son obsoletos). Avisa de certificados caducados, de otro nombre, autofirmados, con firma o clave débil y de TLS antiguo. Se lee el certificado que envía el servidor; **no se verifica la firma de la cadena de confianza**, y los servidores que solo admiten TLS 1.3 cifran su certificado y no se pueden leer así.
+
 ## Herramientas
 
 - **Mi IP pública**: tu IP en Internet, país, ciudad y proveedor (usa el servicio ip-api.com).
@@ -219,7 +223,6 @@ Requisitos: en Linux usa NetworkManager (`nmcli`); en Windows, `netsh` (Windows 
 - **MTU de la ruta**: el paquete más grande que llega sin partirse a un destino. Útil con VPN o webs que no cargan.
 - **Tabla ARP del sistema**: qué IP corresponde a qué MAC en tu red.
 - **Dispositivos UPnP**: televisores, routers, NAS y otros aparatos que se anuncian en la red, con nombre y modelo.
-- **Certificados HTTPS**: escribe uno o varios servidores (`debian.org mail.ejemplo.com:993`) y verás cuántos días le quedan a su certificado (en rojo si ha caducado o caduca en menos de 7 días, naranja y ámbar si queda menos de un mes), a quién cubre, quién lo emitió, el tipo de clave y firma, la cadena de certificados y qué versiones de TLS acepta (✔ en rojo para TLS 1.0 y 1.1, que son obsoletos). Avisa de certificados caducados, de otro nombre, autofirmados, con firma o clave débil y de TLS antiguo. Se lee el certificado que envía el servidor; **no se verifica la firma de la cadena de confianza**, y los servidores que solo admiten TLS 1.3 cifran su certificado y no se pueden leer así.
 - **Whois**: quién es el dueño registrado de un dominio o de una IP, con fechas y contactos públicos. Sigue las referencias hasta el servidor del registro.
 - **Servicios Bonjour / mDNS**: impresoras, Chromecast, AirPlay, carpetas compartidas…
 - **Interfaces y rutas del sistema**: la configuración de red tal como la ve el sistema operativo.

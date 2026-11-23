@@ -1009,6 +1009,8 @@ const TABLE: &[(&str, &str, &str)] = &[
     ("No admite TLS 1.3", "Doesn't support TLS 1.3", "Não suporta TLS 1.3"),
     ("TLS 1.3 es más rápido y seguro.", "TLS 1.3 is faster and more secure.", "O TLS 1.3 é mais rápido e seguro."),
     ("Actualiza el servidor web o su biblioteca TLS para activar TLS 1.3.", "Update the web server or its TLS library to enable TLS 1.3.", "Atualize o servidor web ou sua biblioteca TLS para ativar o TLS 1.3."),
+    ("Certificados HTTPS", "HTTPS certificates", "Certificados HTTPS"),
+    ("Caducidad, validez y versiones de TLS de cualquier servidor", "Expiry, validity and TLS versions of any server", "Expiração, validade e versões de TLS de qualquer servidor"),
 ];
 
 #[cfg(test)]

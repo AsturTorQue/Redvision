@@ -60,7 +60,6 @@ impl NetApp {
 
     pub(crate) fn page_tools(&mut self, ui: &mut Ui) {
         page_title(ui, tr("Herramientas"), tr("Utilidades rápidas para la red"));
-        self.cert_card(ui);
         let pub_running = self.pubip_running.load(Ordering::Relaxed);
         let pub_result = lock(&self.pubip).clone();
         ui.columns(2, |c| {
@@ -161,6 +160,11 @@ impl NetApp {
         });
         ui.add_space(8.0);
         self.tools_more(ui);
+    }
+
+    pub(crate) fn page_certs(&mut self, ui: &mut Ui) {
+        page_title(ui, tr("Certificados HTTPS"), tr("Caducidad, validez y versiones de TLS de cualquier servidor"));
+        self.cert_card(ui);
     }
 
     fn cert_card(&mut self, ui: &mut Ui) {

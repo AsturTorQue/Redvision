@@ -210,6 +210,10 @@ Press **Scan Wi-Fi networks** or tick **Refresh every 10 s** to follow the signa
 
 Requirements: on Linux it uses NetworkManager (`nmcli`); on Windows, `netsh` (Windows 11 asks for **location** permission to list networks); on macOS, the system information (it may not show the BSSID).
 
+## HTTPS certificates
+
+It's in the side menu, right below "Vulnerabilities". Type one or more servers (`debian.org mail.example.com:993`) to see how many days their certificate has left (red if it has expired or expires within 7 days, orange and amber under a month), who it covers, who issued it, key and signature type, the certificate chain and which TLS versions it accepts (a red ✔ for TLS 1.0 and 1.1, which are obsolete). It warns about expired certificates, a different name, self-signed ones, weak signature or key and old TLS. The certificate the server sends is read; **the trust chain signature isn't verified**, and servers that only support TLS 1.3 encrypt their certificate and can't be read this way.
+
 ## Tools
 
 - **My public IP**: your Internet IP, country, city and provider (uses the ip-api.com service).
@@ -219,7 +223,6 @@ Requirements: on Linux it uses NetworkManager (`nmcli`); on Windows, `netsh` (Wi
 - **Path MTU**: the largest packet that reaches a target without being split. Useful with VPNs or sites that won't load.
 - **System ARP table**: which IP belongs to which MAC on your network.
 - **UPnP devices**: TVs, routers, NAS and other gadgets announcing themselves, with name and model.
-- **HTTPS certificates**: type one or more servers (`debian.org mail.example.com:993`) to see how many days their certificate has left (red if it has expired or expires within 7 days, orange and amber under a month), who it covers, who issued it, key and signature type, the certificate chain and which TLS versions it accepts (a red ✔ for TLS 1.0 and 1.1, which are obsolete). It warns about expired certificates, a different name, self-signed ones, weak signature or key and old TLS. The certificate the server sends is read; **the trust chain signature isn't verified**, and servers that only support TLS 1.3 encrypt their certificate and can't be read this way.
 - **Whois**: who the registered owner of a domain or IP is, with dates and public contacts. It follows referrals to the registry's server.
 - **Bonjour / mDNS services**: printers, Chromecast, AirPlay, shared folders…
 - **System interfaces and routes**: the network configuration as the operating system sees it.

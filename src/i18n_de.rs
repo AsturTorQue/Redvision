@@ -351,4 +351,6 @@ pub const DE: &[&str] = &[
     "Unterstützt kein TLS 1.3",
     "TLS 1.3 ist schneller und sicherer.",
     "Webserver oder dessen TLS-Bibliothek aktualisieren, um TLS 1.3 zu aktivieren.",
+    "HTTPS-Zertifikate",
+    "Ablauf, Gültigkeit und TLS-Versionen jedes Servers",
 ];

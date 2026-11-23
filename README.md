@@ -29,7 +29,8 @@ app, en el apartado «Manual de uso», con buscador.
   MTU de la ruta, descubrimiento UPnP (televisores, routers, NAS) y Bonjour/mDNS (impresoras, Chromecast,
   AirPlay), tabla ARP e interfaces y rutas del sistema.
 - **Avisos e historial**: notificación del sistema ante alertas graves y alertas de los últimos 7 días entre sesiones.
-- **Whois** y **certificados HTTPS** (caducidad, nombre, firma, versiones de TLS) en Herramientas; la auditoría de vulnerabilidades también revisa el certificado.
+- **Certificados HTTPS** (apartado propio en el menú): caducidad, nombre, firma y versiones de TLS; la auditoría de vulnerabilidades también revisa el certificado.
+- **Whois** en Herramientas.
 - **Velocidad de subida a Internet** en la prueba de calidad.
 - **Exportar a CSV**: equipos, conexiones, alertas y hallazgos.
 - **Idiomas**: español, inglés, portugués, francés y alemán (usa el del sistema la primera vez).

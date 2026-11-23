@@ -351,4 +351,6 @@ pub const FR: &[&str] = &[
     "Ne prend pas en charge TLS 1.3",
     "TLS 1.3 est plus rapide et plus sûr.",
     "Mettez à jour le serveur web ou sa bibliothèque TLS pour activer TLS 1.3.",
+    "Certificats HTTPS",
+    "Expiration, validité et versions TLS de n'importe quel serveur",
 ];
